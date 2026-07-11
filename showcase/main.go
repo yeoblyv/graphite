@@ -76,8 +76,8 @@ func nordTheme() Graphite.Theme {
 // buildWidgetsTab exercises every widget type in two columns: static/input
 // widgets on the left, data-display widgets on the right.
 func buildWidgetsTab(pb *Graphite.ProgressBar) []Graphite.Widget {
-	colLeft := Graphite.NewPanel(0, 0, 0, 0)
-	colLeft.SetPercentLayout(0, 0, 48, 100)
+	colLeft := Graphite.NewPanel(0, 2, 0, 0)
+	colLeft.SetPercentLayout(0, 0, 48, 90)
 	colLeft.AddWidget(Graphite.NewLabel(0, 0, "Label widget"))
 	colLeft.AddWidget(Graphite.NewSpinner(0, 2, "Spinner widget"))
 	colLeft.AddWidget(Graphite.NewCheckbox(0, 4, "Checkbox (unchecked)", false))
@@ -90,8 +90,8 @@ func buildWidgetsTab(pb *Graphite.ProgressBar) []Graphite.Widget {
 	colLeft.AddWidget(Graphite.NewButton(0, 12, "Info", Graphite.BtnInfo, nil))
 	colLeft.AddWidget(Graphite.NewInputBox(0, 14, 30, "Input: "))
 
-	colRight := Graphite.NewPanel(0, 0, 0, 0)
-	colRight.SetPercentLayout(52, 0, 48, 100)
+	colRight := Graphite.NewPanel(0, 2, 0, 0)
+	colRight.SetPercentLayout(52, 0, 48, 90)
 	colRight.AddWidget(pb)
 	colRight.AddWidget(Graphite.NewLabel(0, 2, "ListBox:"))
 	colRight.AddWidget(Graphite.NewListBox(0, 3, 0, 5, []string{
@@ -112,8 +112,8 @@ func buildWidgetsTab(pb *Graphite.ProgressBar) []Graphite.Widget {
 // buildLayoutTab demonstrates Flex: a row split 1:2:1 and a column split
 // 2:1, both driven entirely by weights instead of hand-computed percentages.
 func buildLayoutTab(theme Graphite.Theme) []Graphite.Widget {
-	panel := Graphite.NewPanel(0, 0, 0, 0)
-	panel.SetPercentLayout(0, 0, 100, 100)
+	panel := Graphite.NewPanel(0, 2, 0, 0)
+	panel.SetPercentLayout(0, 0, 100, 90)
 
 	panel.AddWidget(Graphite.NewLabel(0, 0, "Flex row, weights 1 : 2 : 1 (resize the terminal to see it adapt):"))
 	row := Graphite.NewFlex(0, 2, 0, 5, Graphite.FlexRow)
@@ -137,8 +137,8 @@ func buildLayoutTab(theme Graphite.Theme) []Graphite.Widget {
 // a 3-column grid built from a Flex column of Flex rows — a real use of
 // nested Flex, not just a synthetic demo of it.
 func buildThemeTab(theme Graphite.Theme) []Graphite.Widget {
-	panel := Graphite.NewPanel(0, 0, 0, 0)
-	panel.SetPercentLayout(0, 0, 100, 100)
+	panel := Graphite.NewPanel(0, 2, 0, 0)
+	panel.SetPercentLayout(0, 0, 100, 90)
 	panel.AddWidget(Graphite.NewLabel(0, 0, "Every Theme field, rendered with its actual color:"))
 
 	type namedColor struct {
@@ -187,8 +187,8 @@ func openNestedModal(app *Graphite.Application, depth int) {
 
 // buildModalsTab demonstrates ShowMessage and the nested modal stack.
 func buildModalsTab(app *Graphite.Application) []Graphite.Widget {
-	panel := Graphite.NewPanel(0, 0, 0, 0)
-	panel.SetPercentLayout(0, 0, 100, 100)
+	panel := Graphite.NewPanel(0, 2, 0, 0)
+	panel.SetPercentLayout(0, 0, 100, 90)
 	panel.AddWidget(Graphite.NewLabel(0, 0, "Modal windows stack — open several and close them one at a time."))
 	panel.AddWidget(Graphite.NewButton(0, 2, "Show A Message", Graphite.BtnDefault, func() {
 		app.ShowMessage(" Notice ", "This is a simple single modal dialog.", Graphite.BtnDefault)
