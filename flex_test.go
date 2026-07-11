@@ -119,3 +119,28 @@ func TestFlex_GetChildrenReturnsAddedWidgetsInOrder(t *testing.T) {
 		t.Fatalf("GetChildren() = %v, want [a, b] in insertion order", got)
 	}
 }
+
+func TestFlex_ClearRemovesAllChildrenAndLaysOutFreshOnes(t *testing.T) {
+	f := NewFlex(0, 0, 0, 0, FlexRow)
+	old1, old2 := stretch(), stretch()
+	f.AddChild(old1, 1)
+	f.AddChild(old2, 1)
+
+	f.Clear()
+	if len(f.GetChildren()) != 0 {
+		t.Fatalf("GetChildren() after Clear() = %v, want empty", f.GetChildren())
+	}
+
+	fresh := stretch()
+	f.AddChild(fresh, 1)
+	f.DrawRelative(NewCanvas(), 0, 0, 40, 5)
+
+	// The fresh child alone should get the full width, not share it with
+	// the cleared (but not garbage-collected-from-the-struct) old children.
+	if fresh.LastW != 40 {
+		t.Errorf("fresh child width = %d, want 40 (sole child after Clear)", fresh.LastW)
+	}
+	if len(f.GetChildren()) != 1 {
+		t.Errorf("GetChildren() after Clear+AddChild = %v, want exactly the fresh child", f.GetChildren())
+	}
+}

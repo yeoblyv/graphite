@@ -61,6 +61,13 @@ func (f *Flex) AddChild(w Widget, weight int) {
 	f.children = append(f.children, flexChild{Widget: w, Weight: weight})
 }
 
+// Clear removes every child, for containers that rebuild their contents at
+// runtime (e.g. a dynamic list of channels) — clear and re-add is simpler
+// and less error-prone than tracking individual child indices.
+func (f *Flex) Clear() {
+	f.children = nil
+}
+
 // GetChildren implements Widget, letting Window descend into the container
 // when building the focus order and hit-testing the tree.
 func (f *Flex) GetChildren() []Widget {
