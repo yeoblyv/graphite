@@ -7,12 +7,29 @@ import (
 )
 
 // newTestFader creates a Fader and resolves its layout (trackTop,
-// trackHeight, muteRow, soloRow, clipRow) via a real DrawRelative call, the
-// same way Window would before routing any event to it.
+// trackHeight, buttonsRow, clipRow) via a real DrawRelative call, the same
+// way Window would before routing any event to it.
 func newTestFader() *Fader {
-	f := NewFader(0, 0, 16, 18, "CH1", RGB(255, 200, 0))
+	f := NewFader(0, 0, 16, "CH1", RGB(255, 200, 0))
 	f.DrawRelative(NewCanvas(), 0, 0, 16, 18)
 	return f
+}
+
+func TestFader_StretchesToFillOfferedHeight(t *testing.T) {
+	f := NewFader(0, 0, 16, "CH1", RGB(255, 200, 0))
+	if f.Height > 0 {
+		t.Fatalf("NewFader's Height = %d, want <= 0 (stretch by default)", f.Height)
+	}
+
+	f.DrawRelative(NewCanvas(), 0, 0, 16, 12)
+	if f.LastH != 12 {
+		t.Errorf("offered pH=12: LastH = %d, want 12", f.LastH)
+	}
+
+	f.DrawRelative(NewCanvas(), 0, 0, 16, 30)
+	if f.LastH != 30 {
+		t.Errorf("offered pH=30: LastH = %d, want 30 (should track the new offered height)", f.LastH)
+	}
 }
 
 func TestFader_SetLevelClampsAndLatchesClip(t *testing.T) {
@@ -132,24 +149,31 @@ func TestFader_MuteAndSoloToggleAndFireCallbacks(t *testing.T) {
 	f.OnMuteChange = func(m bool) { mutedStates = append(mutedStates, m) }
 	f.OnSoloChange = func(s bool) { soloedStates = append(soloedStates, s) }
 
-	f.HandleEvent(Event{Type: EventMouseDown, MouseX: 5, MouseY: f.muteRow})
+	// Mute and Solo now share one row, split left (mute) / right (solo).
+	muteX := f.AbsX
+	soloX := f.AbsX + f.LastW - 1
+
+	f.HandleEvent(Event{Type: EventMouseDown, MouseX: muteX, MouseY: f.buttonsRow})
 	if !f.Muted {
-		t.Error("clicking the mute row should set Muted")
+		t.Error("clicking the left (mute) half should set Muted")
 	}
-	f.HandleEvent(Event{Type: EventMouseDown, MouseX: 5, MouseY: f.muteRow})
+	f.HandleEvent(Event{Type: EventMouseDown, MouseX: muteX, MouseY: f.buttonsRow})
 	if f.Muted {
-		t.Error("clicking the mute row again should clear Muted")
+		t.Error("clicking the left (mute) half again should clear Muted")
 	}
 	if len(mutedStates) != 2 || mutedStates[0] != true || mutedStates[1] != false {
 		t.Errorf("OnMuteChange sequence = %v, want [true false]", mutedStates)
 	}
 
-	f.HandleEvent(Event{Type: EventMouseDown, MouseX: 5, MouseY: f.soloRow})
+	f.HandleEvent(Event{Type: EventMouseDown, MouseX: soloX, MouseY: f.buttonsRow})
 	if !f.Soloed {
-		t.Error("clicking the solo row should set Soloed")
+		t.Error("clicking the right (solo) half should set Soloed")
 	}
 	if len(soloedStates) != 1 || soloedStates[0] != true {
 		t.Errorf("OnSoloChange sequence = %v, want [true]", soloedStates)
+	}
+	if f.Muted {
+		t.Error("clicking the solo half must not affect Muted")
 	}
 }
 
@@ -190,7 +214,7 @@ func TestFader_ArrowKeysNudgeValue(t *testing.T) {
 // alone, so this closes that gap for the new drag machinery specifically.
 func TestFader_EndToEndDragFromRawSGRBytes(t *testing.T) {
 	win := NewWindow(60, 40, "mixer")
-	f := NewFader(2, 2, 16, 20, "CH1", RGB(255, 200, 0))
+	f := NewFader(2, 2, 16, "CH1", RGB(255, 200, 0))
 	win.AddWidget(f)
 
 	c := NewCanvas()

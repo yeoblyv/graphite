@@ -32,9 +32,10 @@ func defaultFaderTicks() []FaderTick {
 // fader (Value, 0-100), an optional independent VU meter (Level, set via
 // SetLevel — distinct from Value, the way a real mixer's meter shows the
 // actual signal while the fader only sets gain), an optional latching clip
-// indicator, optional Mute/Solo toggles, and a colored channel label.
-// Recommended minimum size is about 14 columns by 16 rows with every
-// optional feature enabled; below that the sub-regions get cramped.
+// LED, and optional icon-only Mute/Solo buttons sharing one row, and a
+// colored channel label. Height defaults to 0, so — like Panel — a Fader
+// stretches to fill whatever vertical space its parent (e.g. Flex) offers;
+// set Height explicitly for a fixed size instead.
 type Fader struct {
 	BaseWidget
 
@@ -69,16 +70,16 @@ type Fader struct {
 	// HandleEvent can work out which sub-region a click landed in without
 	// redoing layout math. -1 means that row isn't currently shown.
 	trackTop, trackHeight int
-	clipRow, muteRow      int
-	soloRow               int
+	clipRow, buttonsRow   int
 }
 
-// NewFader creates a Fader at (x, y) with the given size, channel name, and
-// label color. All optional sub-features (meter, clip light, mute, solo)
-// start enabled; Value starts at 80 (near the "0" mark on the default
+// NewFader creates a Fader at (x, y) with the given width, channel name, and
+// label color; Height starts at 0 (stretch to fill the parent — see the
+// Fader doc comment). All optional sub-features (meter, clip LED, mute,
+// solo) start enabled; Value starts at 80 (near the "0" mark on the default
 // ticks, matching where a real fader normally sits — not pinned at the top).
-func NewFader(x, y, w, h int, channelName string, labelColor Color) *Fader {
-	base := NewBaseWidget(x, y, w, h)
+func NewFader(x, y, w int, channelName string, labelColor Color) *Fader {
+	base := NewBaseWidget(x, y, w, 0)
 	base.IsFocusable = true
 	return &Fader{
 		BaseWidget:    base,
@@ -187,11 +188,8 @@ func (f *Fader) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	}
 
 	reserved := 0
-	if f.ShowMute {
-		reserved++
-	}
-	if f.ShowSolo {
-		reserved++
+	if f.ShowMute || f.ShowSolo {
+		reserved = 1
 	}
 
 	f.trackTop = row
@@ -200,52 +198,71 @@ func (f *Fader) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		f.trackHeight = 1
 	}
 
-	next := f.trackTop + f.trackHeight
-	f.muteRow, f.soloRow = -1, -1
-	if f.ShowMute {
-		f.muteRow = next
-		next++
-	}
-	if f.ShowSolo {
-		f.soloRow = next
+	f.buttonsRow = -1
+	if reserved > 0 {
+		f.buttonsRow = f.trackTop + f.trackHeight
 	}
 
 	f.drawClipIndicator(c)
 	f.drawTrack(c)
-	f.drawMuteSoloRow(c, f.muteRow, f.ShowMute, "MUTE", f.Muted, c.theme.Danger)
-	f.drawMuteSoloRow(c, f.soloRow, f.ShowSolo, "SOLO", f.Soloed, c.theme.Warning)
+	f.drawButtonsRow(c)
 }
 
-// fillRow paints an entire widget-width row with bg and centers text on it.
-func (f *Fader) fillRow(c *Canvas, row int, bg, fg Color, text string) {
-	for x := 0; x < f.LastW; x++ {
-		c.DrawCell(f.AbsX+x, row, " ", bg, fg)
-	}
-	textW := len([]rune(text))
-	startX := f.AbsX + max(0, (f.LastW-textW)/2)
-	c.DrawText(startX, row, text, bg, fg)
-}
-
+// drawClipIndicator paints a centered LED-style dot: dim when idle, red
+// when Clipping is latched — imitating a hardware clip light rather than a
+// labeled button.
 func (f *Fader) drawClipIndicator(c *Canvas) {
 	if !f.ShowClip {
 		return
 	}
-	bg, fg := c.theme.BgWidget, c.theme.FgDisabled
-	if f.Clipping {
-		bg, fg = c.theme.Danger, RGB(255, 255, 255)
+	bg := c.theme.BgWidget
+	for x := 0; x < f.LastW; x++ {
+		c.DrawCell(f.AbsX+x, f.clipRow, " ", bg, bg)
 	}
-	f.fillRow(c, f.clipRow, bg, fg, "CLIP")
+	led := c.theme.FgDisabled
+	if f.Clipping {
+		led = c.theme.Danger
+	}
+	ledX := f.AbsX + max(0, (f.LastW-1)/2)
+	c.DrawText(ledX, f.clipRow, "⬤", bg, led)
 }
 
-func (f *Fader) drawMuteSoloRow(c *Canvas, row int, show bool, label string, active bool, activeColor Color) {
-	if !show {
+// drawButtonsRow paints Mute and Solo as icon-only buttons sharing one row
+// — Mute ("🄼") on the left, Solo ("🅂") on the right — or a single centered
+// icon if only one of them is shown.
+func (f *Fader) drawButtonsRow(c *Canvas) {
+	if f.buttonsRow < 0 {
 		return
 	}
+	bg := c.theme.BgWidget
+	for x := 0; x < f.LastW; x++ {
+		c.DrawCell(f.AbsX+x, f.buttonsRow, " ", bg, bg)
+	}
+
+	switch {
+	case f.ShowMute && f.ShowSolo:
+		half := f.LastW / 2
+		f.drawIconButton(c, f.AbsX, half, "🄼", f.Muted, c.theme.Danger)
+		f.drawIconButton(c, f.AbsX+half, f.LastW-half, "🅂", f.Soloed, c.theme.Warning)
+	case f.ShowMute:
+		f.drawIconButton(c, f.AbsX, f.LastW, "🄼", f.Muted, c.theme.Danger)
+	case f.ShowSolo:
+		f.drawIconButton(c, f.AbsX, f.LastW, "🅂", f.Soloed, c.theme.Warning)
+	}
+}
+
+// drawIconButton fills a w-wide segment of the buttons row starting at x
+// with icon, centered, colored activeColor when active.
+func (f *Fader) drawIconButton(c *Canvas, x, w int, icon string, active bool, activeColor Color) {
 	bg, fg := c.theme.BgWidget, c.theme.FgDisabled
 	if active {
-		bg, fg = activeColor, RGB(0, 0, 0)
+		bg, fg = activeColor, RGB(255, 255, 255)
 	}
-	f.fillRow(c, row, bg, fg, label)
+	for i := 0; i < w; i++ {
+		c.DrawCell(x+i, f.buttonsRow, " ", bg, fg)
+	}
+	iconX := x + max(0, (w-1)/2)
+	c.DrawText(iconX, f.buttonsRow, icon, bg, fg)
 }
 
 // drawTrack renders the tick labels, VU meter, and fader rail/handle.
@@ -320,7 +337,8 @@ func (f *Fader) drawTrack(c *Canvas) {
 // the same spot), a drag continues updating Value the same way a click
 // would — Window's mouse capture guarantees Fader keeps receiving
 // EventMouseDrag even once the pointer leaves its own bounds — and clicks
-// on the Mute/Solo/clip sub-rows toggle their state.
+// on the clip LED clear it, and clicks on the buttons row toggle Mute or
+// Solo depending on which half was hit.
 func (f *Fader) HandleEvent(ev Event) {
 	switch ev.Type {
 	case EventKey:
@@ -343,16 +361,8 @@ func (f *Fader) handleClick(ev Event) {
 	switch {
 	case f.ShowClip && ev.MouseY == f.clipRow:
 		f.ClearClip()
-	case f.ShowMute && ev.MouseY == f.muteRow:
-		f.Muted = !f.Muted
-		if f.OnMuteChange != nil {
-			f.OnMuteChange(f.Muted)
-		}
-	case f.ShowSolo && ev.MouseY == f.soloRow:
-		f.Soloed = !f.Soloed
-		if f.OnSoloChange != nil {
-			f.OnSoloChange(f.Soloed)
-		}
+	case ev.MouseY == f.buttonsRow && (f.ShowMute || f.ShowSolo):
+		f.handleButtonsClick(ev.MouseX)
 	case ev.MouseY >= f.trackTop && ev.MouseY < f.trackTop+f.trackHeight:
 		if f.isDoubleClick(ev) {
 			if f.OnDoubleClick != nil {
@@ -361,6 +371,27 @@ func (f *Fader) handleClick(ev Event) {
 			return
 		}
 		f.setValueFromRow(ev.MouseY)
+	}
+}
+
+// handleButtonsClick toggles Mute or Solo depending on which half of the
+// buttons row mouseX falls in, mirroring drawButtonsRow's layout.
+func (f *Fader) handleButtonsClick(mouseX int) {
+	isMute := f.ShowMute
+	if f.ShowMute && f.ShowSolo {
+		isMute = mouseX < f.AbsX+f.LastW/2
+	}
+
+	if isMute {
+		f.Muted = !f.Muted
+		if f.OnMuteChange != nil {
+			f.OnMuteChange(f.Muted)
+		}
+		return
+	}
+	f.Soloed = !f.Soloed
+	if f.OnSoloChange != nil {
+		f.OnSoloChange(f.Soloed)
 	}
 }
 

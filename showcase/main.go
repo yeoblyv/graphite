@@ -211,17 +211,17 @@ func buildMixerTab(app *Graphite.Application) ([]Graphite.Widget, *Graphite.Fade
 	panel.AddWidget(Graphite.NewLabel(0, 0,
 		"Drag the handle, click the track to jump, double-click to type an exact value:"))
 
-	row := Graphite.NewFlex(0, 2, 0, 20, Graphite.FlexRow)
+	row := Graphite.NewFlex(0, 2, 0, 0, Graphite.FlexRow) // Height 0: stretch to fill the panel.
 	row.Gap = 2
 
-	mic := Graphite.NewFader(0, 0, 16, 20, "MIC 1", Graphite.RGB(235, 203, 139))
+	mic := Graphite.NewFader(0, 0, 16, "MIC 1", Graphite.RGB(235, 203, 139))
 	mic.OnDoubleClick = func() {
 		Graphite.ShowFaderValueEditor(app, "MIC 1 Value", mic.Value, func(v float64) {
 			mic.Value = v
 		})
 	}
 
-	desktop := Graphite.NewFader(0, 0, 16, 20, "DESKTOP", Graphite.RGB(136, 192, 208))
+	desktop := Graphite.NewFader(0, 0, 16, "DESKTOP", Graphite.RGB(136, 192, 208))
 	desktop.ShowSolo = false // an optional feature turned off, for contrast.
 	desktop.OnDoubleClick = func() {
 		Graphite.ShowFaderValueEditor(app, "DESKTOP Value", desktop.Value, func(v float64) {
@@ -229,7 +229,7 @@ func buildMixerTab(app *Graphite.Application) ([]Graphite.Widget, *Graphite.Fade
 		})
 	}
 
-	aux := Graphite.NewFader(0, 0, 12, 20, "AUX", Graphite.RGB(191, 97, 106))
+	aux := Graphite.NewFader(0, 0, 12, "AUX", Graphite.RGB(191, 97, 106))
 	aux.ShowMeter, aux.ShowClip, aux.ShowMute, aux.ShowSolo = false, false, false, false
 	aux.OnDoubleClick = func() {
 		Graphite.ShowFaderValueEditor(app, "AUX Value", aux.Value, func(v float64) {
