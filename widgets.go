@@ -1,0 +1,394 @@
+package graphite
+
+import (
+	"fmt"
+	"math"
+	"time"
+)
+
+// -------------------------------------------------------------------------
+// Label
+// -------------------------------------------------------------------------
+
+// Label draws a single line of static text.
+type Label struct {
+	BaseWidget
+	Text string
+}
+
+// NewLabel creates a Label at (x, y) sized to fit text.
+func NewLabel(x, y int, text string) *Label {
+	w := len([]rune(text))
+	base := NewBaseWidget(x, y, w, 1)
+	return &Label{BaseWidget: base, Text: text}
+}
+
+// SetText replaces the label's text and resizes it to fit the new content.
+func (l *Label) SetText(text string) {
+	l.Text = text
+	l.Width = len([]rune(text))
+}
+
+// DrawRelative implements Widget.
+func (l *Label) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	l.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	c.DrawText(l.AbsX, l.AbsY, l.Text, c.theme.BgWindow, c.theme.FgWindow)
+}
+
+// -------------------------------------------------------------------------
+// Spinner
+// -------------------------------------------------------------------------
+
+// Spinner draws an animated braille-style busy indicator next to a label.
+type Spinner struct {
+	BaseWidget
+	Label string
+}
+
+// NewSpinner creates a Spinner at (x, y) sized to fit label.
+func NewSpinner(x, y int, label string) *Spinner {
+	w := len([]rune(label)) + 3
+	base := NewBaseWidget(x, y, w, 1)
+	return &Spinner{BaseWidget: base, Label: label}
+}
+
+// getFrame picks the animation frame for the current wall-clock time, so all
+// spinners on screen stay in sync without needing a shared ticker.
+func (s *Spinner) getFrame() string {
+	frames := []string{"▙", "▛", "▜", "▟"}
+	ms := time.Now().UnixMilli()
+	return frames[(ms/150)%int64(len(frames))]
+}
+
+// DrawRelative implements Widget.
+func (s *Spinner) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	s.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	c.DrawText(s.AbsX, s.AbsY, s.getFrame()+" "+s.Label, c.theme.BgWindow, c.theme.Primary)
+}
+
+// -------------------------------------------------------------------------
+// Checkbox
+// -------------------------------------------------------------------------
+
+// Checkbox is a focusable boolean toggle with a label.
+type Checkbox struct {
+	BaseWidget
+	Label   string
+	Checked bool
+}
+
+// NewCheckbox creates a Checkbox at (x, y) with the given initial state.
+func NewCheckbox(x, y int, label string, checked bool) *Checkbox {
+	base := NewBaseWidget(x, y, len([]rune(label))+4, 1)
+	base.IsFocusable = true
+	return &Checkbox{BaseWidget: base, Label: label, Checked: checked}
+}
+
+// DrawRelative implements Widget.
+func (cb *Checkbox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	cb.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	bg, fg := c.theme.BgWindow, c.theme.FgWindow
+	if cb.IsFocused {
+		bg, fg = c.theme.BgFocused, c.theme.FgFocused
+	}
+	box := "[ ] "
+	if cb.Checked {
+		box = "[■] "
+	}
+	c.DrawText(cb.AbsX, cb.AbsY, box+cb.Label, bg, fg)
+}
+
+// HandleEvent implements Widget: Space, Enter, and mouse clicks all toggle
+// the checkbox.
+func (cb *Checkbox) HandleEvent(ev Event) {
+	if (ev.Type == EventKey && (ev.Key == KeySpace || ev.Key == KeyEnter)) || ev.Type == EventMouseDown {
+		cb.Checked = !cb.Checked
+	}
+}
+
+// -------------------------------------------------------------------------
+// Button
+// -------------------------------------------------------------------------
+
+// ButtonStyle selects a Button's accent color.
+type ButtonStyle int
+
+// Supported button styles.
+const (
+	BtnDefault ButtonStyle = iota
+	BtnSuccess
+	BtnDanger
+	BtnWarning
+	BtnInfo
+)
+
+// Button is a focusable, clickable action with a text label.
+type Button struct {
+	BaseWidget
+	Text    string
+	Style   ButtonStyle
+	OnClick func()
+}
+
+// NewButton creates a Button at (x, y) that calls onClick when activated.
+func NewButton(x, y int, text string, style ButtonStyle, onClick func()) *Button {
+	base := NewBaseWidget(x, y, len([]rune(text))+4, 1)
+	base.IsFocusable = true
+	return &Button{BaseWidget: base, Text: text, Style: style, OnClick: onClick}
+}
+
+// DrawRelative implements Widget.
+func (b *Button) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	b.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	// Every branch below sets bg explicitly, so it starts undefined; fg's
+	// initial value is the one actually used in the enabled-and-unfocused
+	// case.
+	var bg int
+	fg := c.theme.FgWindow
+	if !b.Enabled {
+		bg, fg = c.theme.BgWidget, c.theme.FgDisabled
+	} else if b.IsFocused {
+		fg = c.theme.FgFocused
+		switch b.Style {
+		case BtnSuccess:
+			bg = c.theme.Success
+		case BtnDanger:
+			bg = c.theme.Danger
+		default:
+			bg = c.theme.BgFocused
+		}
+	} else {
+		if b.Style == BtnDanger {
+			bg = c.theme.Danger - 10
+		} else {
+			bg = c.theme.BgWidget
+		}
+	}
+	c.DrawText(b.AbsX, b.AbsY, "[ "+b.Text+" ]", bg, fg)
+}
+
+// HandleEvent implements Widget: Enter and mouse clicks both activate
+// OnClick. Window.HandleEvent already withholds events from a disabled
+// button, so no enabled check is needed here.
+func (b *Button) HandleEvent(ev Event) {
+	if (ev.Type == EventKey && ev.Key == KeyEnter) || ev.Type == EventMouseDown {
+		if b.OnClick != nil {
+			b.OnClick()
+		}
+	}
+}
+
+// -------------------------------------------------------------------------
+// InputBox
+// -------------------------------------------------------------------------
+
+// InputBox is a single-line, focusable text field with a fixed label,
+// horizontal scrolling, and a visible text cursor.
+type InputBox struct {
+	BaseWidget
+	Label     string
+	Value     string
+	CursorPos int
+}
+
+// NewInputBox creates an InputBox at (x, y) with the given width and label.
+func NewInputBox(x, y, w int, label string) *InputBox {
+	base := NewBaseWidget(x, y, w, 1)
+	base.IsFocusable = true
+	return &InputBox{BaseWidget: base, Label: label, CursorPos: 0}
+}
+
+// DrawRelative implements Widget.
+func (ib *InputBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	ib.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	lblLen := len([]rune(ib.Label))
+	c.DrawText(ib.AbsX, ib.AbsY, ib.Label, c.theme.BgWindow, c.theme.FgWindow)
+
+	inX := ib.AbsX + lblLen
+	inW := ib.LastW - lblLen
+	if inW < 3 {
+		return
+	}
+
+	c.DrawCell(inX, ib.AbsY, "[", c.theme.BgWindow, c.theme.FgWindow)
+	c.DrawCell(inX+inW-1, ib.AbsY, "]", c.theme.BgWindow, c.theme.FgWindow)
+
+	bg, fg := c.theme.BgWidget, c.theme.FgWindow
+	if ib.IsFocused {
+		bg, fg = c.theme.BgFocused, c.theme.FgFocused
+	}
+
+	for i := 1; i < inW-1; i++ {
+		c.DrawCell(inX+i, ib.AbsY, " ", bg, fg)
+	}
+
+	runes := []rune(ib.Value)
+	maxVis := inW - 2
+
+	// Scroll just enough to keep the cursor inside the visible field.
+	scroll := 0
+	if ib.CursorPos >= maxVis {
+		scroll = ib.CursorPos - maxVis + 1
+	}
+
+	startIdx := scroll
+	if startIdx > len(runes) {
+		startIdx = len(runes)
+	}
+	endIdx := scroll + maxVis
+	if endIdx > len(runes) {
+		endIdx = len(runes)
+	}
+
+	visRunes := runes[startIdx:endIdx]
+	c.DrawText(inX+1, ib.AbsY, string(visRunes), bg, fg)
+
+	if ib.IsFocused {
+		cursorScreenX := inX + 1 + ib.CursorPos - scroll
+		if cursorScreenX >= inX+1 && cursorScreenX < inX+inW-1 {
+			charUnderCursor := " "
+			if ib.CursorPos < len(runes) {
+				charUnderCursor = string(runes[ib.CursorPos])
+			}
+			// White-on-black cursor block, independent of the theme.
+			c.DrawCell(cursorScreenX, ib.AbsY, charUnderCursor, 47, 30)
+		}
+	}
+}
+
+// HandleEvent implements Widget: arrow keys move the cursor, Backspace and
+// Delete remove the rune behind/under it, and any other printable character
+// is inserted at the cursor. A mouse click moves the cursor to the clicked
+// column, accounting for horizontal scroll.
+func (ib *InputBox) HandleEvent(ev Event) {
+	runes := []rune(ib.Value)
+	if ev.Type == EventKey {
+		if ev.Key == KeyLeft && ib.CursorPos > 0 {
+			ib.CursorPos--
+		} else if ev.Key == KeyRight && ib.CursorPos < len(runes) {
+			ib.CursorPos++
+		} else if ev.Key == KeyBackspace && ib.CursorPos > 0 {
+			ib.Value = string(append(runes[:ib.CursorPos-1], runes[ib.CursorPos:]...))
+			ib.CursorPos--
+		} else if ev.Key == KeyDelete && ib.CursorPos < len(runes) {
+			ib.Value = string(append(runes[:ib.CursorPos], runes[ib.CursorPos+1:]...))
+		} else if ev.CharCode >= 32 {
+			head := append([]rune{}, runes[:ib.CursorPos]...)
+			tail := append([]rune{}, runes[ib.CursorPos:]...)
+			head = append(head, ev.CharCode)
+			ib.Value = string(append(head, tail...))
+			ib.CursorPos++
+		}
+	} else if ev.Type == EventMouseDown {
+		relX := ev.MouseX - (ib.AbsX + len([]rune(ib.Label)) + 1)
+		if relX >= 0 {
+			maxVis := ib.LastW - len([]rune(ib.Label)) - 2
+			scroll := 0
+			if ib.CursorPos >= maxVis {
+				scroll = ib.CursorPos - maxVis + 1
+			}
+
+			newPos := scroll + relX
+			if newPos > len(runes) {
+				ib.CursorPos = len(runes)
+			} else {
+				ib.CursorPos = newPos
+			}
+		}
+	}
+}
+
+// -------------------------------------------------------------------------
+// ProgressBar
+// -------------------------------------------------------------------------
+
+// ProgressBar draws a labeled, filled bar showing completion from 0 to 100.
+type ProgressBar struct {
+	BaseWidget
+	Label    string
+	Progress float32
+}
+
+// NewProgressBar creates a ProgressBar at (x, y) starting at 0% progress.
+func NewProgressBar(x, y, w int, label string) *ProgressBar {
+	base := NewBaseWidget(x, y, w, 1)
+	return &ProgressBar{BaseWidget: base, Label: label, Progress: 0.0}
+}
+
+// SetProgress sets the completion percentage, clamped to [0, 100].
+func (pb *ProgressBar) SetProgress(p float32) {
+	pb.Progress = float32(math.Min(math.Max(float64(p), 0), 100))
+}
+
+// DrawRelative implements Widget.
+func (pb *ProgressBar) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	pb.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	c.DrawText(pb.AbsX, pb.AbsY, pb.Label, c.theme.BgWindow, c.theme.FgWindow)
+	lblLen := len([]rune(pb.Label))
+	bX, bW := pb.AbsX+lblLen+1, pb.LastW-lblLen-9
+	if bW < 5 {
+		return
+	}
+	c.DrawCell(bX, pb.AbsY, "[", c.theme.BgWindow, c.theme.FgWindow)
+	c.DrawCell(bX+bW-1, pb.AbsY, "]", c.theme.BgWindow, c.theme.FgWindow)
+
+	fW := bW - 2
+	filled := int((pb.Progress * float32(fW)) / 100.0)
+	for i := 0; i < fW; i++ {
+		if i < filled {
+			c.DrawCell(bX+1+i, pb.AbsY, "█", c.theme.BgWindow, c.theme.Primary)
+		} else {
+			c.DrawCell(bX+1+i, pb.AbsY, "░", c.theme.BgWindow, c.theme.Disabled)
+		}
+	}
+	c.DrawText(bX+bW, pb.AbsY, fmt.Sprintf(" %.1f%%", pb.Progress), c.theme.BgWindow, c.theme.FgWindow)
+}
+
+// -------------------------------------------------------------------------
+// Panel — layout container for responsive columns/blocks
+// -------------------------------------------------------------------------
+
+// Panel groups child widgets under a shared position and size (typically
+// percentage-based) without being focusable itself; only its children are.
+type Panel struct {
+	BaseWidget
+	Children []Widget
+	FocusIdx int
+}
+
+// NewPanel creates an empty Panel at (x, y) with the given size.
+func NewPanel(x, y, w, h int) *Panel {
+	base := NewBaseWidget(x, y, w, h)
+	base.IsFocusable = false
+	return &Panel{BaseWidget: base, Children: make([]Widget, 0)}
+}
+
+// AddWidget appends a child widget to the panel.
+func (p *Panel) AddWidget(w Widget) {
+	p.Children = append(p.Children, w)
+}
+
+// GetChildren implements Widget, letting Window descend into the panel when
+// building the focus order and hit-testing the tree.
+func (p *Panel) GetChildren() []Widget {
+	return p.Children
+}
+
+// DrawRelative implements Widget.
+func (p *Panel) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	p.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	for _, child := range p.Children {
+		if child.IsVisible() {
+			child.DrawRelative(c, p.AbsX, p.AbsY, p.LastW, p.LastH)
+		}
+	}
+}
+
+// DrawOverlay implements Widget.
+func (p *Panel) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
+	for _, child := range p.Children {
+		if child.IsVisible() {
+			child.DrawOverlay(c, p.AbsX, p.AbsY, p.LastW, p.LastH)
+		}
+	}
+}
