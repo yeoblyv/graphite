@@ -27,7 +27,7 @@ $ErrorActionPreference = "Stop"
 
 $Dist = "dist"
 # name => package path, one entry per `package main` program in this repo.
-$Programs = @{ "demo" = "./demo" }
+$Programs = @{ "demo" = "./demo"; "showcase" = "./showcase" }
 
 function Build-Target {
     param([string]$Goos, [string]$Goarch, [string]$Ext)

@@ -4,8 +4,9 @@
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 A small terminal UI (TUI) widget library for Go: a double-buffered canvas
-with a diffing renderer, a `Widget` interface with focus/enabled/visible
-state handled for you, and a set of ready-made widgets (labels, buttons,
+with a diffing renderer and truecolor (24-bit RGB) rendering, a `Widget`
+interface with focus/enabled/visible state handled for you, a `Flex`
+layout container, and a set of ready-made widgets (labels, buttons,
 checkboxes, input boxes, text areas, list boxes, todo lists, tabs, progress
 bars, panels for layout, modal windows).
 
@@ -14,7 +15,8 @@ bars, panels for layout, modal windows).
 ```bash
 git clone <this-repo-url>
 cd graphite
-go run ./demo
+go run ./demo       # a component launcher built with Graphite
+go run ./showcase   # every widget, Flex layout, and a custom theme in one window
 ```
 
 Minimal usage from your own program:
@@ -76,6 +78,15 @@ Both write cross-compiled binaries to `dist/<goos>_<goarch>/`.
   concrete widgets only implement drawing and event handling.
 - **`Window`** hosts a widget tree, resolves Tab order, and routes mouse and
   keyboard events.
+- **`Flex`** distributes space among children along one axis by weight
+  (CSS-flexbox-style), for layouts that shouldn't need hand-computed percent
+  offsets — see `showcase`'s Layout tab.
+- **`Color`** is a 24-bit RGB value (`RGB(r, g, b)` or `Hex("#RRGGBB")`);
+  `Theme` and every draw call use it, rendered as truecolor ANSI. Display
+  text drawn via `Canvas.DrawText` accounts for double-width runes (CJK)
+  automatically; `InputBox`/`TextArea` cursor math is rune-count-based, not
+  display-column-based, so very wide characters can drift slightly out of
+  sync with the visual cursor while editing.
 - Updating a widget from a background goroutine (e.g. streaming subprocess
   output, as `demo` does) must go through `Application.Invoke`, the only
   thread-safe way to touch widget state from outside the render loop.

@@ -152,12 +152,7 @@ func streamComponent(app *Graphite.Application, exePath string, compName string)
 }
 
 func main() {
-	app := Graphite.NewApplication()
-	app.SetTheme(Graphite.Theme{
-		BgScreen: 40, BgWindow: 40, FgWindow: 37, BgWidget: 100,
-		BgFocused: 41, FgFocused: 37, Primary: 41, Success: 42,
-		Danger: 41, Warning: 43, Disabled: 40, FgDisabled: 90,
-	})
+	app := Graphite.NewApplication() // Uses Graphite.DefaultTheme(); see showcase/main.go for a custom theme.
 	app.SetStatus(" F1: Help | Arrows/Mouse: Navigate | Tab: Next Widget | Enter: Select | Esc: Exit ")
 
 	win := Graphite.NewWindow(100, 30, " System Launcher Console ")

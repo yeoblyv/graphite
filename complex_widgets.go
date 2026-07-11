@@ -141,7 +141,7 @@ func (ta *TextArea) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 					charUnderCursor = string(runes[ta.CursorPos])
 				}
 				// White-on-black cursor block, independent of the theme.
-				c.DrawCell(screenX, screenY, charUnderCursor, 47, 30)
+				c.DrawCell(screenX, screenY, charUnderCursor, RGB(255, 255, 255), RGB(0, 0, 0))
 			}
 		}
 	}

@@ -150,11 +150,11 @@ func (w *Window) Draw(c *Canvas) {
 	aY := (c.Height() - aH) / 2
 
 	for i := 2; i <= aW+1; i++ {
-		c.DrawCell(aX+i, aY+aH, "░", c.GetCellBg(aX+i, aY+aH), 90)
+		c.DrawCell(aX+i, aY+aH, "░", c.GetCellBg(aX+i, aY+aH), c.theme.Disabled)
 	}
 	for i := 1; i <= aH; i++ {
-		c.DrawCell(aX+aW, aY+i, "░", c.GetCellBg(aX+aW, aY+i), 90)
-		c.DrawCell(aX+aW+1, aY+i, "░", c.GetCellBg(aX+aW+1, aY+i), 90)
+		c.DrawCell(aX+aW, aY+i, "░", c.GetCellBg(aX+aW, aY+i), c.theme.Disabled)
+		c.DrawCell(aX+aW+1, aY+i, "░", c.GetCellBg(aX+aW+1, aY+i), c.theme.Disabled)
 	}
 
 	bg, fg := c.theme.BgWindow, c.theme.FgWindow

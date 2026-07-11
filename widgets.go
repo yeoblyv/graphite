@@ -143,7 +143,7 @@ func (b *Button) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	// Every branch below sets bg explicitly, so it starts undefined; fg's
 	// initial value is the one actually used in the enabled-and-unfocused
 	// case.
-	var bg int
+	var bg Color
 	fg := c.theme.FgWindow
 	if !b.Enabled {
 		bg, fg = c.theme.BgWidget, c.theme.FgDisabled
@@ -159,7 +159,7 @@ func (b *Button) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		}
 	} else {
 		if b.Style == BtnDanger {
-			bg = c.theme.Danger - 10
+			bg = c.theme.Danger.Darken(0.3)
 		} else {
 			bg = c.theme.BgWidget
 		}
@@ -251,7 +251,7 @@ func (ib *InputBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 				charUnderCursor = string(runes[ib.CursorPos])
 			}
 			// White-on-black cursor block, independent of the theme.
-			c.DrawCell(cursorScreenX, ib.AbsY, charUnderCursor, 47, 30)
+			c.DrawCell(cursorScreenX, ib.AbsY, charUnderCursor, RGB(255, 255, 255), RGB(0, 0, 0))
 		}
 	}
 }

@@ -1,6 +1,6 @@
 MODULE  := github.com/yeoblyv/graphite
 DIST    := dist
-PROGRAMS := demo:./demo
+PROGRAMS := demo:./demo showcase:./showcase
 
 .PHONY: build build-all \
 	build-windows-amd64 build-windows-386 build-linux-amd64 build-linux-386 build-target \

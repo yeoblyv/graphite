@@ -52,3 +52,26 @@ func TestParseANSI_MultiByteUnicode(t *testing.T) {
 		t.Errorf("expected charcode 'ю', got %+v", got)
 	}
 }
+
+// FuzzParseANSI feeds parseANSI arbitrary byte sequences — the terminal
+// reader hands it raw, attacker-influenceable stdin bytes in production, so
+// the only real contract to fuzz for is "never panics", not any specific
+// decoded Event.
+func FuzzParseANSI(f *testing.F) {
+	f.Add([]byte{9})
+	f.Add([]byte{13})
+	f.Add([]byte{27})
+	f.Add([]byte{127})
+	f.Add([]byte{27, '[', 'A'})
+	f.Add([]byte{27, '[', '3', '~'})
+	f.Add([]byte("\033[<0;10;5M"))
+	f.Add([]byte("\033[<0;10;5m"))
+	f.Add([]byte("ю"))
+	f.Add([]byte{})
+	f.Add([]byte{27, '['})
+	f.Add([]byte{27, '[', '<'})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		_ = parseANSI(data)
+	})
+}
