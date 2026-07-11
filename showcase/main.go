@@ -199,6 +199,52 @@ func buildModalsTab(app *Graphite.Application) []Graphite.Widget {
 	return []Graphite.Widget{panel}
 }
 
+// buildMixerTab demonstrates Fader: three channel strips with different
+// optional features enabled, arranged with Flex so they share the row
+// evenly. It returns the tab's widgets plus the two Faders whose VU meter
+// the caller should animate (there's no real audio here, so the level is
+// simulated) to make the point that Level is independent of Value — the
+// meter moves on its own while the fader stays wherever it was left.
+func buildMixerTab(app *Graphite.Application) ([]Graphite.Widget, *Graphite.Fader, *Graphite.Fader) {
+	panel := Graphite.NewPanel(0, 2, 0, 0)
+	panel.SetPercentLayout(0, 0, 100, 90)
+	panel.AddWidget(Graphite.NewLabel(0, 0,
+		"Drag the handle, click the track to jump, double-click to type an exact value:"))
+
+	row := Graphite.NewFlex(0, 2, 0, 20, Graphite.FlexRow)
+	row.Gap = 2
+
+	mic := Graphite.NewFader(0, 0, 16, 20, "MIC 1", Graphite.RGB(235, 203, 139))
+	mic.OnDoubleClick = func() {
+		Graphite.ShowFaderValueEditor(app, "MIC 1 Value", mic.Value, func(v float64) {
+			mic.Value = v
+		})
+	}
+
+	desktop := Graphite.NewFader(0, 0, 16, 20, "DESKTOP", Graphite.RGB(136, 192, 208))
+	desktop.ShowSolo = false // an optional feature turned off, for contrast.
+	desktop.OnDoubleClick = func() {
+		Graphite.ShowFaderValueEditor(app, "DESKTOP Value", desktop.Value, func(v float64) {
+			desktop.Value = v
+		})
+	}
+
+	aux := Graphite.NewFader(0, 0, 12, 20, "AUX", Graphite.RGB(191, 97, 106))
+	aux.ShowMeter, aux.ShowClip, aux.ShowMute, aux.ShowSolo = false, false, false, false
+	aux.OnDoubleClick = func() {
+		Graphite.ShowFaderValueEditor(app, "AUX Value", aux.Value, func(v float64) {
+			aux.Value = v
+		})
+	}
+
+	row.AddChild(mic, 1)
+	row.AddChild(desktop, 1)
+	row.AddChild(aux, 1)
+	panel.AddWidget(row)
+
+	return []Graphite.Widget{panel}, mic, desktop
+}
+
 func main() {
 	theme := nordTheme()
 	app := Graphite.NewApplication()
@@ -213,17 +259,23 @@ func main() {
 	win.AddWidget(tabs)
 
 	pb := Graphite.NewProgressBar(0, 0, 30, "Progress:")
-	startTime := time.Now()
-	app.SetIdleCallback(func() {
-		elapsed := time.Since(startTime).Seconds()
-		pct := math.Mod(elapsed*10, 100)
-		pb.SetProgress(float32(pct))
-	})
-
 	tWidgets := buildWidgetsTab(pb)
 	tLayout := buildLayoutTab(theme)
 	tTheme := buildThemeTab(theme)
 	tModals := buildModalsTab(app)
+	tMixer, micFader, desktopFader := buildMixerTab(app)
+
+	startTime := time.Now()
+	app.SetIdleCallback(func() {
+		elapsed := time.Since(startTime).Seconds()
+		pb.SetProgress(float32(math.Mod(elapsed*10, 100)))
+
+		// No real audio input exists here, so fake a plausible-looking
+		// signal: this is what makes SetLevel visibly independent of
+		// Value — the meter moves on its own while the fader stays put.
+		micFader.SetLevel(55 + 40*math.Sin(elapsed*2))
+		desktopFader.SetLevel(35 + 25*math.Sin(elapsed*3.3+1))
+	})
 
 	tabs.AddTab("Widgets", tWidgets)
 	for _, w := range tWidgets {
@@ -239,6 +291,10 @@ func main() {
 	}
 	tabs.AddTab("Modals", tModals)
 	for _, w := range tModals {
+		win.AddWidget(w)
+	}
+	tabs.AddTab("Mixer", tMixer)
+	for _, w := range tMixer {
 		win.AddWidget(w)
 	}
 

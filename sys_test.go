@@ -24,6 +24,16 @@ func TestParseANSI(t *testing.T) {
 			[]byte("\033[<0;10;5M"),
 			Event{Type: EventMouseDown, MouseX: 9, MouseY: 4},
 		},
+		{
+			"sgr mouse drag",
+			[]byte("\033[<32;12;7M"),
+			Event{Type: EventMouseDrag, MouseX: 11, MouseY: 6},
+		},
+		{
+			"sgr mouse up",
+			[]byte("\033[<0;10;5m"),
+			Event{Type: EventMouseUp, MouseX: 9, MouseY: 4},
+		},
 		{"empty", []byte{}, Event{Type: EventNone}},
 	}
 
@@ -37,11 +47,13 @@ func TestParseANSI(t *testing.T) {
 	}
 }
 
-func TestParseANSI_MouseRelease(t *testing.T) {
-	// "m" suffix means release, not a press — should be ignored.
-	got := parseANSI([]byte("\033[<0;10;5m"))
-	if got.Type != EventNone {
-		t.Errorf("expected release to be ignored, got %+v", got)
+func TestParseANSI_MouseReleaseIgnoresButtonNumber(t *testing.T) {
+	// A release ends mouse capture regardless of which button was let go
+	// (see Window.mouseCapture), so any btn value with an "m" suffix must
+	// decode to EventMouseUp, not just btn=0.
+	got := parseANSI([]byte("\033[<2;10;5m"))
+	if got.Type != EventMouseUp {
+		t.Errorf("parseANSI(btn=2 release) = %+v, want Type=EventMouseUp", got)
 	}
 }
 
@@ -65,6 +77,7 @@ func FuzzParseANSI(f *testing.F) {
 	f.Add([]byte{27, '[', 'A'})
 	f.Add([]byte{27, '[', '3', '~'})
 	f.Add([]byte("\033[<0;10;5M"))
+	f.Add([]byte("\033[<32;10;5M"))
 	f.Add([]byte("\033[<0;10;5m"))
 	f.Add([]byte("ю"))
 	f.Add([]byte{})

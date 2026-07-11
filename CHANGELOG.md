@@ -18,6 +18,18 @@ Baseline for the first public release.
 - `Application.SetTheme`, replacing a package-level mutable theme variable.
 - Cross-compile build tooling (`Makefile`, `build.ps1`) for
   windows/amd64, windows/386, linux/amd64, and linux/386.
+- Truecolor `Color` (`RGB`/`Hex`/`Darken`), a `Flex` layout container, and
+  unicode-width-aware text rendering.
+- Real mouse drag: `EventMouseDrag`/`EventMouseUp`, decoded from SGR
+  button-event mouse tracking, and implicit mouse capture in `Window` so a
+  drag keeps reaching the widget that was pressed even after the pointer
+  leaves its bounds.
+- `Fader`, a draggable/clickable channel-strip widget (independent VU meter
+  via `SetLevel`, latching clip indicator, Mute/Solo, colored label,
+  double-click-to-edit via `ShowFaderValueEditor`) built on top of the new
+  mouse capture.
+- `FuzzParseANSI`, `FuzzTextAreaBuildLines`, `FuzzSanitizeGlyph` fuzz the
+  three hand-rolled parsers.
 
 ### Fixed
 

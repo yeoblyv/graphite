@@ -81,6 +81,14 @@ Both write cross-compiled binaries to `dist/<goos>_<goarch>/`.
 - **`Flex`** distributes space among children along one axis by weight
   (CSS-flexbox-style), for layouts that shouldn't need hand-computed percent
   offsets — see `showcase`'s Layout tab.
+- **`Fader`** is a draggable channel-strip control (gain `Value`, an
+  independent VU `Level` via `SetLevel`, a latching clip indicator,
+  Mute/Solo, a colored channel label) — see `showcase`'s Mixer tab and
+  `ShowFaderValueEditor`. Real dragging (not just click-to-jump) is backed
+  by `Window`'s implicit mouse capture: once a widget is hit by
+  `EventMouseDown`, it keeps receiving `EventMouseDrag`/`EventMouseUp` even
+  after the pointer leaves its bounds, until release — the same model every
+  desktop GUI toolkit uses.
 - **`Color`** is a 24-bit RGB value (`RGB(r, g, b)` or `Hex("#RRGGBB")`);
   `Theme` and every draw call use it, rendered as truecolor ANSI. Display
   text drawn via `Canvas.DrawText` accounts for double-width runes (CJK)

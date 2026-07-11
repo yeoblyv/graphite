@@ -59,6 +59,65 @@ func TestInputBox_CursorClampsToBounds(t *testing.T) {
 	}
 }
 
+// eventSpy is a minimal Widget that just records every event it receives,
+// used to observe Window's mouse-routing decisions directly instead of
+// inferring them from a real widget's side effects.
+type eventSpy struct {
+	BaseWidget
+	received []EventType
+}
+
+func newEventSpy(x, y, w, h int) *eventSpy {
+	return &eventSpy{BaseWidget: NewBaseWidget(x, y, w, h)}
+}
+
+func (s *eventSpy) HandleEvent(ev Event) {
+	s.received = append(s.received, ev.Type)
+}
+
+// Regression: once a widget is hit by EventMouseDown, it must keep
+// receiving EventMouseDrag/EventMouseUp even after the pointer moves
+// outside its own bounds — e.g. a fader handle dragged past the widget's
+// edge — rather than Window re-hit-testing on every motion event and
+// routing the drag to whatever happens to be under the pointer now.
+func TestWindow_MouseCaptureFollowsDragOutsideWidgetBounds(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+
+	a := newEventSpy(0, 0, 5, 5)
+	b := newEventSpy(10, 0, 5, 5)
+	win.AddWidget(a)
+	win.AddWidget(b)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	// Press on A, then drag to a point over B, then release over B.
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: a.AbsX, MouseY: a.AbsY})
+	win.HandleEvent(Event{Type: EventMouseDrag, MouseX: b.AbsX, MouseY: b.AbsY})
+	win.HandleEvent(Event{Type: EventMouseUp, MouseX: b.AbsX, MouseY: b.AbsY})
+
+	wantA := []EventType{EventMouseDown, EventMouseDrag, EventMouseUp}
+	if len(a.received) != len(wantA) {
+		t.Fatalf("A received %v, want %v", a.received, wantA)
+	}
+	for i, ev := range wantA {
+		if a.received[i] != ev {
+			t.Errorf("A.received[%d] = %v, want %v", i, a.received[i], ev)
+		}
+	}
+	if len(b.received) != 0 {
+		t.Errorf("B should not have received anything during A's capture, got %v", b.received)
+	}
+
+	// Capture was released on EventMouseUp, so a fresh press on B now
+	// reaches B normally.
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: b.AbsX, MouseY: b.AbsY})
+	if len(b.received) != 1 || b.received[0] != EventMouseDown {
+		t.Errorf("B.received after a fresh press = %v, want [EventMouseDown]", b.received)
+	}
+}
+
 // Regression: a disabled widget must not react to a mouse click. Before
 // Widget.IsEnabled() and the check in Window.HandleEvent were added, this
 // slipped through for every widget except Button.

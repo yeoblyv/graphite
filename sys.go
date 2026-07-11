@@ -31,11 +31,13 @@ func newTerminal() *terminal {
 }
 
 // init switches the terminal into raw mode, enters the alternate screen
-// buffer, hides the cursor, and enables SGR mouse reporting. It starts the
-// background input reader on first call and is safe to call again after
-// restore (e.g. across a Suspend/Resume cycle).
+// buffer, hides the cursor, and enables SGR button-event mouse reporting
+// (clicks, releases, and motion while a button is held — not idle
+// movement, which would be reported for every pixel the pointer crosses).
+// It starts the background input reader on first call and is safe to call
+// again after restore (e.g. across a Suspend/Resume cycle).
 func (t *terminal) init() {
-	fmt.Print("\033[?1049h\033[?25l\033[?1000h\033[?1015h\033[?1006h")
+	fmt.Print("\033[?1049h\033[?25l\033[?1002h\033[?1015h\033[?1006h")
 
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err == nil {
@@ -69,7 +71,7 @@ func (t *terminal) restore() {
 	if t.oldState != nil {
 		_ = term.Restore(int(os.Stdin.Fd()), t.oldState)
 	}
-	fmt.Print("\033[?1006l\033[?1015l\033[?1000l\033[?25h\033[?1049l")
+	fmt.Print("\033[?1006l\033[?1015l\033[?1002l\033[?25h\033[?1049l")
 }
 
 // pollEvent waits briefly for the next input event, returning EventNone if
@@ -97,8 +99,8 @@ func GetTerminalSize() (int, int) {
 
 // parseANSI decodes one raw read from stdin into a single Graphite Event.
 // It recognizes plain ASCII keys, common ANSI escape sequences (arrows,
-// Delete), SGR mouse-press reports, and falls back to treating any other
-// multi-byte sequence as a single decoded UTF-8 rune.
+// Delete), SGR mouse press/drag/release reports, and falls back to treating
+// any other multi-byte sequence as a single decoded UTF-8 rune.
 func parseANSI(buf []byte) Event {
 	if len(buf) == 0 {
 		return Event{Type: EventNone}
@@ -142,25 +144,32 @@ func parseANSI(buf []byte) Event {
 			return Event{Type: EventKey, Key: KeyDelete}
 		}
 
-		// SGR mouse report: \033[<Btn;X;Y M (press) or m (release).
+		// SGR mouse report: \033[<Btn;X;Y M (press/drag) or m (release).
 		if buf[2] == '<' {
 			seq := string(buf[3:])
 			isPress := strings.HasSuffix(seq, "M")
 			seq = strings.TrimRight(seq, "Mm")
 			parts := strings.Split(seq, ";")
 
-			if len(parts) == 3 && isPress {
+			if len(parts) == 3 {
 				btn, _ := strconv.Atoi(parts[0])
 				x, _ := strconv.Atoi(parts[1])
 				y, _ := strconv.Atoi(parts[2])
+				mx, my := x-1, y-1 // Convert from 1-based to 0-based.
 
-				// SGR reports the left button as 0, or 32 while dragging.
-				if btn == 0 || btn == 32 {
-					return Event{
-						Type:   EventMouseDown,
-						MouseX: x - 1, // Convert from 1-based to 0-based.
-						MouseY: y - 1,
-					}
+				if !isPress {
+					// A release ends whatever widget captured the mouse on
+					// the preceding press, regardless of which button — see
+					// Window's mouse capture.
+					return Event{Type: EventMouseUp, MouseX: mx, MouseY: my}
+				}
+				// SGR reports the left button as 0 for a fresh press, or 32
+				// (button bit unchanged, motion bit set) while dragging.
+				switch btn {
+				case 0:
+					return Event{Type: EventMouseDown, MouseX: mx, MouseY: my}
+				case 32:
+					return Event{Type: EventMouseDrag, MouseX: mx, MouseY: my}
 				}
 			}
 		}

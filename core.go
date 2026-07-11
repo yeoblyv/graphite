@@ -35,6 +35,13 @@ const (
 	EventNone EventType = iota
 	EventKey
 	EventMouseDown
+	// EventMouseDrag is a motion report with the left button held, deliv-
+	// ered only to whichever widget was hit by the preceding EventMouseDown
+	// (see Window's mouse capture), regardless of where the pointer moves.
+	EventMouseDrag
+	// EventMouseUp is a button release. Like EventMouseDrag, it goes to the
+	// widget that captured the preceding EventMouseDown, and ends capture.
+	EventMouseUp
 )
 
 // Event is a single input notification delivered to the focused widget (for

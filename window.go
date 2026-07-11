@@ -9,6 +9,14 @@ type Window struct {
 	Title                      string
 	Children                   []Widget
 	PaddingX, PaddingY         int
+
+	// mouseCapture is the widget that was hit by the most recent
+	// EventMouseDown. Until the matching EventMouseUp, drag and release
+	// events go straight to it — bypassing hit-testing — so a drag that
+	// moves the pointer outside the widget's bounds (e.g. a fader handle
+	// dragged past the widget's edge) still reaches it. This mirrors the
+	// implicit mouse capture every desktop GUI toolkit does.
+	mouseCapture Widget
 }
 
 // NewWindow creates a Window with a fixed size and title, and default
@@ -67,11 +75,23 @@ func (w *Window) AddWidget(widget Widget) {
 }
 
 // HandleEvent routes a mouse or keyboard event to the appropriate widget:
-// mouse events go to the deepest widget hit-tested under the pointer, Tab
-// advances focus through the flattened focus order, and all other key
-// events go to whichever widget currently has focus. Disabled widgets never
-// receive an event, regardless of what their own HandleEvent does.
+// a mouse press goes to the deepest widget hit-tested under the pointer and
+// captures the mouse, so the resulting drag/release events go straight to
+// that same widget regardless of where the pointer moves next; Tab advances
+// focus through the flattened focus order; all other key events go to
+// whichever widget currently has focus. Disabled widgets never receive an
+// event, regardless of what their own HandleEvent does.
 func (w *Window) HandleEvent(ev Event) {
+	if ev.Type == EventMouseDrag || ev.Type == EventMouseUp {
+		if w.mouseCapture != nil && w.mouseCapture.IsEnabled() {
+			w.mouseCapture.HandleEvent(ev)
+		}
+		if ev.Type == EventMouseUp {
+			w.mouseCapture = nil
+		}
+		return
+	}
+
 	if ev.Type == EventMouseDown {
 		var target Widget
 		var walk func(widgets []Widget)
@@ -87,6 +107,7 @@ func (w *Window) HandleEvent(ev Event) {
 		}
 		walk(w.Children)
 
+		w.mouseCapture = nil
 		if target != nil && target.IsEnabled() {
 			if target.CanFocus() {
 				for _, f := range w.getFlatFocusables() {
@@ -96,6 +117,7 @@ func (w *Window) HandleEvent(ev Event) {
 				}
 				target.SetFocus(true)
 			}
+			w.mouseCapture = target
 			target.HandleEvent(ev)
 		}
 		return
