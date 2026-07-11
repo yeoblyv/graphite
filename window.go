@@ -1,4 +1,4 @@
-package graphite
+package Graphite
 
 // Window is a bordered, titled container drawn centered on the canvas. It
 // holds a flat list of top-level children (which may themselves be

@@ -1,4 +1,4 @@
-# graphite
+# Graphite
 
 ![go version](https://img.shields.io/badge/go-%3E%3D1.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
@@ -25,11 +25,11 @@ package main
 import "github.com/yeoblyv/graphite"
 
 func main() {
-	app := graphite.NewApplication()
+	app := Graphite.NewApplication()
 
-	win := graphite.NewWindow(50, 10, " Hello ")
-	win.AddWidget(graphite.NewLabel(2, 2, "Hello, terminal!"))
-	win.AddWidget(graphite.NewButton(2, 4, "Quit", graphite.BtnDefault, func() {
+	win := Graphite.NewWindow(50, 10, " Hello ")
+	win.AddWidget(Graphite.NewLabel(2, 2, "Hello, terminal!"))
+	win.AddWidget(Graphite.NewButton(2, 4, "Quit", Graphite.BtnDefault, func() {
 		app.Quit()
 	}))
 

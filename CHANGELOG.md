@@ -34,3 +34,6 @@ Baseline for the first public release.
 
 - All source comments and documentation translated to English; every
   exported type, function, and method now carries a godoc comment.
+- Package identifier capitalized from `graphite` to `Graphite`; callers now
+  write `Graphite.NewApplication()` etc. The import path itself
+  (`github.com/yeoblyv/graphite`) is unchanged.

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Cross-compiles graphite's example programs, or runs a check target.
+    Cross-compiles Graphite's example programs, or runs a check target.
 
 .DESCRIPTION
     Mirrors the Makefile in this repo for machines without `make` installed.

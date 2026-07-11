@@ -75,22 +75,22 @@ func loadComponents(baseDir string) []Component {
 // once the process exits and the user dismisses the result. All widget
 // mutations from the background goroutines go through app.Invoke, since
 // those goroutines run concurrently with Application.Run's render loop.
-func streamComponent(app *graphite.Application, exePath string, compName string) {
+func streamComponent(app *Graphite.Application, exePath string, compName string) {
 	if _, err := os.Stat(exePath); os.IsNotExist(err) {
-		app.ShowMessage(" ERROR ", fmt.Sprintf("Executable not found at:\n%s", exePath), graphite.BtnDanger)
+		app.ShowMessage(" ERROR ", fmt.Sprintf("Executable not found at:\n%s", exePath), Graphite.BtnDanger)
 		return
 	}
 
-	mod := graphite.NewWindow(80, 24, fmt.Sprintf(" Executing: %s ", compName))
+	mod := Graphite.NewWindow(80, 24, fmt.Sprintf(" Executing: %s ", compName))
 
-	statusLbl := graphite.NewLabel(2, 1, "Status: Starting process...")
+	statusLbl := Graphite.NewLabel(2, 1, "Status: Starting process...")
 	mod.AddWidget(statusLbl)
 
-	outArea := graphite.NewTextArea(2, 3, 74, 16)
+	outArea := Graphite.NewTextArea(2, 3, 74, 16)
 	outArea.SetText("")
 	mod.AddWidget(outArea)
 
-	btnClose := graphite.NewButton(34, 20, "Close", graphite.BtnDefault, func() {
+	btnClose := Graphite.NewButton(34, 20, "Close", Graphite.BtnDefault, func() {
 		app.CloseModal()
 	})
 	btnClose.SetVisible(false)
@@ -152,18 +152,18 @@ func streamComponent(app *graphite.Application, exePath string, compName string)
 }
 
 func main() {
-	app := graphite.NewApplication()
-	app.SetTheme(graphite.Theme{
+	app := Graphite.NewApplication()
+	app.SetTheme(Graphite.Theme{
 		BgScreen: 40, BgWindow: 40, FgWindow: 37, BgWidget: 100,
 		BgFocused: 41, FgFocused: 37, Primary: 41, Success: 42,
 		Danger: 41, Warning: 43, Disabled: 40, FgDisabled: 90,
 	})
 	app.SetStatus(" F1: Help | Arrows/Mouse: Navigate | Tab: Next Widget | Enter: Select | Esc: Exit ")
 
-	win := graphite.NewWindow(100, 30, " System Launcher Console ")
+	win := Graphite.NewWindow(100, 30, " System Launcher Console ")
 	win.SetPercentSize(90, 90)
 
-	navTabs := graphite.NewTabView(0, 0, 90, graphite.TabDefault)
+	navTabs := Graphite.NewTabView(0, 0, 90, Graphite.TabDefault)
 	win.AddWidget(navTabs)
 
 	components := loadComponents("components")
@@ -175,26 +175,26 @@ func main() {
 	// =========================================================
 	// TAB 1: TWEAKS
 	// =========================================================
-	var tTweaks []graphite.Widget
-	colList := graphite.NewPanel(0, 2, 0, 0)
+	var tTweaks []Graphite.Widget
+	colList := Graphite.NewPanel(0, 2, 0, 0)
 	colList.SetPercentLayout(0, 0, 35, 90)
 
-	colAction := graphite.NewPanel(0, 2, 0, 0)
+	colAction := Graphite.NewPanel(0, 2, 0, 0)
 	colAction.SetPercentLayout(40, 0, 55, 90)
 
-	lblCompName := graphite.NewLabel(0, 0, "Select a component...")
-	lblCompVer := graphite.NewLabel(0, 2, "Version: -")
-	lblCompAuth := graphite.NewLabel(0, 3, "Author: -")
-	lblCompAdmin := graphite.NewLabel(0, 4, "")
+	lblCompName := Graphite.NewLabel(0, 0, "Select a component...")
+	lblCompVer := Graphite.NewLabel(0, 2, "Version: -")
+	lblCompAuth := Graphite.NewLabel(0, 3, "Author: -")
+	lblCompAdmin := Graphite.NewLabel(0, 4, "")
 
-	descArea := graphite.NewTextArea(0, 6, 0, 8)
+	descArea := Graphite.NewTextArea(0, 6, 0, 8)
 	descArea.SetEnabled(false)
 	descArea.SetText("Description will appear here.")
 
 	var selectedExePath string
 	var selectedCompName string
 
-	btnRun := graphite.NewButton(0, 15, "Execute Component", graphite.BtnSuccess, func() {
+	btnRun := Graphite.NewButton(0, 15, "Execute Component", Graphite.BtnSuccess, func() {
 		if selectedExePath != "" {
 			streamComponent(app, selectedExePath, selectedCompName)
 		}
@@ -208,7 +208,7 @@ func main() {
 	colAction.AddWidget(descArea)
 	colAction.AddWidget(btnRun)
 
-	list := graphite.NewListBox(0, 0, 0, 20, folderNames, nil)
+	list := Graphite.NewListBox(0, 0, 0, 20, folderNames, nil)
 
 	if len(folderNames) == 0 {
 		lblCompName.SetText("No components found in ./components/")
@@ -247,17 +247,17 @@ func main() {
 	// =========================================================
 	// TABS 2 & 3
 	// =========================================================
-	var tParams []graphite.Widget
-	pnlParams := graphite.NewPanel(2, 2, 0, 0)
+	var tParams []Graphite.Widget
+	pnlParams := Graphite.NewPanel(2, 2, 0, 0)
 	pnlParams.SetPercentLayout(0, 0, 90, 90)
-	pnlParams.AddWidget(graphite.NewCheckbox(0, 0, "Run launcher with Admin privileges", false))
-	pnlParams.AddWidget(graphite.NewCheckbox(0, 2, "Check for updates on startup", true))
+	pnlParams.AddWidget(Graphite.NewCheckbox(0, 0, "Run launcher with Admin privileges", false))
+	pnlParams.AddWidget(Graphite.NewCheckbox(0, 2, "Check for updates on startup", true))
 	tParams = append(tParams, pnlParams)
 
-	var tVersion []graphite.Widget
-	pnlVersion := graphite.NewPanel(2, 2, 0, 0)
+	var tVersion []Graphite.Widget
+	pnlVersion := Graphite.NewPanel(2, 2, 0, 0)
 	pnlVersion.SetPercentLayout(0, 0, 90, 90)
-	pnlVersion.AddWidget(graphite.NewLabel(0, 0, "Launcher Version: v3.0.0-STREAMING-FIX"))
+	pnlVersion.AddWidget(Graphite.NewLabel(0, 0, "Launcher Version: v3.0.0-STREAMING-FIX"))
 	tVersion = append(tVersion, pnlVersion)
 
 	navTabs.AddTab("Tweaks", tTweaks)
