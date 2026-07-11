@@ -86,7 +86,7 @@ func NewFader(x, y, w int, channelName string, labelColor Color) *Fader {
 		ChannelName:   channelName,
 		LabelColor:    labelColor,
 		Value:         80,
-		ClipThreshold: 100,
+		ClipThreshold: faderDangerZonePercent,
 		ShowMeter:     true,
 		ShowClip:      true,
 		ShowMute:      true,
@@ -96,15 +96,16 @@ func NewFader(x, y, w int, channelName string, labelColor Color) *Fader {
 }
 
 // SetLevel sets the independent live VU level (0-100), clamped, and latches
-// Clipping once it reaches ClipThreshold. Clipping stays latched — even if
-// Level later drops back down — until ClearClip is called or the clip
-// indicator is clicked, so a brief peak isn't missed, matching how a real
-// clip light behaves.
+// Clipping once it reaches ClipThreshold — by default, the same point the
+// meter turns red (faderDangerZonePercent), not only a full 100% peak.
+// Clipping stays latched — even if Level later drops back down — until
+// ClearClip is called or the clip indicator is clicked, so a brief peak
+// isn't missed, matching how a real clip light behaves.
 func (f *Fader) SetLevel(level float64) {
 	f.Level = math.Min(math.Max(level, 0), 100)
 	threshold := f.ClipThreshold
 	if threshold <= 0 {
-		threshold = 100
+		threshold = faderDangerZonePercent
 	}
 	if f.Level >= threshold {
 		f.Clipping = true
@@ -155,12 +156,19 @@ func (f *Fader) setValueFromRow(row int) {
 	f.setValue(f.percentForRow(row))
 }
 
+// faderDangerZonePercent is the VU meter's red-zone threshold. It doubles
+// as the default Clipping latch point (see NewFader and SetLevel), so the
+// clip LED lights up exactly when the meter enters the red zone, not only
+// at a full 100% peak.
+const faderDangerZonePercent = 85.0
+
 // faderZoneColor picks the meter color for a given level percentage: green
-// below 60, amber 60-85, red at or above 85 — reusing Theme's existing
-// Success/Warning/Danger fields rather than adding new ones.
+// below 60, amber 60 to faderDangerZonePercent, red at or above it —
+// reusing Theme's existing Success/Warning/Danger fields rather than
+// adding new ones.
 func faderZoneColor(theme Theme, pct float64) Color {
 	switch {
-	case pct >= 85:
+	case pct >= faderDangerZonePercent:
 		return theme.Danger
 	case pct >= 60:
 		return theme.Warning
@@ -208,9 +216,10 @@ func (f *Fader) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	f.drawButtonsRow(c)
 }
 
-// drawClipIndicator paints a centered LED-style dot: dim when idle, red
-// when Clipping is latched — imitating a hardware clip light rather than a
-// labeled button.
+// drawClipIndicator paints a "⬤ Clipping" LED-style label: dark red when
+// idle, bright red when Clipping is latched — the same dim/bright pattern
+// a real LED shows, rather than switching between an unrelated gray and
+// red.
 func (f *Fader) drawClipIndicator(c *Canvas) {
 	if !f.ShowClip {
 		return
@@ -219,12 +228,11 @@ func (f *Fader) drawClipIndicator(c *Canvas) {
 	for x := 0; x < f.LastW; x++ {
 		c.DrawCell(f.AbsX+x, f.clipRow, " ", bg, bg)
 	}
-	led := c.theme.FgDisabled
+	led := c.theme.Danger.Darken(0.6)
 	if f.Clipping {
 		led = c.theme.Danger
 	}
-	ledX := f.AbsX + max(0, (f.LastW-1)/2)
-	c.DrawText(ledX, f.clipRow, "⬤", bg, led)
+	c.DrawText(f.AbsX, f.clipRow, "⬤ Clipping", bg, led)
 }
 
 // drawButtonsRow paints Mute and Solo as icon-only buttons sharing one row
@@ -252,9 +260,11 @@ func (f *Fader) drawButtonsRow(c *Canvas) {
 }
 
 // drawIconButton fills a w-wide segment of the buttons row starting at x
-// with icon, centered, colored activeColor when active.
+// with icon, centered. Inactive uses a dark tint of activeColor rather than
+// a shared gray, so Mute (red-tinted) and Solo (amber-tinted) stay visually
+// distinct even when both are off; active is the full-brightness color.
 func (f *Fader) drawIconButton(c *Canvas, x, w int, icon string, active bool, activeColor Color) {
-	bg, fg := c.theme.BgWidget, c.theme.FgDisabled
+	bg, fg := activeColor.Darken(0.65), c.theme.FgWindow
 	if active {
 		bg, fg = activeColor, RGB(255, 255, 255)
 	}
