@@ -3,7 +3,10 @@ package Graphite
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
+
+	"github.com/atotto/clipboard"
 )
 
 // -------------------------------------------------------------------------
@@ -32,7 +35,11 @@ func (l *Label) SetText(text string) {
 // DrawRelative implements Widget.
 func (l *Label) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	l.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
-	c.DrawText(l.AbsX, l.AbsY, l.Text, c.theme.BgWindow, c.theme.FgWindow)
+	lines := c.DrawTextWrapped(l.AbsX, l.AbsY, l.LastW, l.Text, c.theme.BgWindow, c.theme.FgWindow)
+	l.LastH = lines
+	if l.LastH < 1 {
+		l.LastH = 1
+	}
 }
 
 // -------------------------------------------------------------------------
@@ -63,7 +70,7 @@ func (s *Spinner) getFrame() string {
 // DrawRelative implements Widget.
 func (s *Spinner) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	s.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
-	c.DrawText(s.AbsX, s.AbsY, s.getFrame()+" "+s.Label, c.theme.BgWindow, c.theme.Primary)
+	c.DrawTextBounded(s.AbsX, s.AbsY, s.LastW, s.getFrame()+" "+s.Label, c.theme.BgWindow, c.theme.Primary)
 }
 
 // -------------------------------------------------------------------------
@@ -73,8 +80,9 @@ func (s *Spinner) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 // Checkbox is a focusable boolean toggle with a label.
 type Checkbox struct {
 	BaseWidget
-	Label   string
-	Checked bool
+	Label    string
+	Checked  bool
+	OnChange func(checked bool)
 }
 
 // NewCheckbox creates a Checkbox at (x, y) with the given initial state.
@@ -95,7 +103,7 @@ func (cb *Checkbox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	if cb.Checked {
 		box = "[■] "
 	}
-	c.DrawText(cb.AbsX, cb.AbsY, box+cb.Label, bg, fg)
+	c.DrawTextBounded(cb.AbsX, cb.AbsY, cb.LastW, box+cb.Label, bg, fg)
 }
 
 // HandleEvent implements Widget: Space, Enter, and mouse clicks all toggle
@@ -103,6 +111,9 @@ func (cb *Checkbox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 func (cb *Checkbox) HandleEvent(ev Event) {
 	if (ev.Type == EventKey && (ev.Key == KeySpace || ev.Key == KeyEnter)) || ev.Type == EventMouseDown {
 		cb.Checked = !cb.Checked
+		if cb.OnChange != nil {
+			cb.OnChange(cb.Checked)
+		}
 	}
 }
 
@@ -164,7 +175,7 @@ func (b *Button) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 			bg = c.theme.BgWidget
 		}
 	}
-	c.DrawText(b.AbsX, b.AbsY, "[ "+b.Text+" ]", bg, fg)
+	c.DrawTextBounded(b.AbsX, b.AbsY, b.LastW, "[ "+b.Text+" ]", bg, fg)
 }
 
 // HandleEvent implements Widget: Enter and mouse clicks both activate
@@ -189,6 +200,7 @@ type InputBox struct {
 	Label     string
 	Value     string
 	CursorPos int
+	OnSubmit  func(string)
 }
 
 // NewInputBox creates an InputBox at (x, y) with the given width and label.
@@ -215,7 +227,7 @@ func (ib *InputBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 
 	bg, fg := c.theme.BgWidget, c.theme.FgWindow
 	if ib.IsFocused {
-		bg, fg = c.theme.BgFocused, c.theme.FgFocused
+		bg, fg = RGB(45, 53, 62), c.theme.FgWindow
 	}
 
 	for i := 1; i < inW-1; i++ {
@@ -272,6 +284,28 @@ func (ib *InputBox) HandleEvent(ev Event) {
 			ib.CursorPos--
 		} else if ev.Key == KeyDelete && ib.CursorPos < len(runes) {
 			ib.Value = string(append(runes[:ib.CursorPos], runes[ib.CursorPos+1:]...))
+		} else if ev.Key == KeyCtrlC {
+			clipboard.WriteAll(ib.Value)
+		} else if ev.Key == KeyCtrlX {
+			clipboard.WriteAll(ib.Value)
+			ib.Value = ""
+			ib.CursorPos = 0
+		} else if ev.Key == KeyCtrlV {
+			text, err := clipboard.ReadAll()
+			if err == nil {
+				// Remove newlines since InputBox is single-line
+				text = strings.ReplaceAll(text, "\n", "")
+				text = strings.ReplaceAll(text, "\r", "")
+				head := append([]rune{}, runes[:ib.CursorPos]...)
+				tail := append([]rune{}, runes[ib.CursorPos:]...)
+				pasted := []rune(text)
+				ib.Value = string(append(append(head, pasted...), tail...))
+				ib.CursorPos += len(pasted)
+			}
+		} else if ev.Key == KeyEnter {
+			if ib.OnSubmit != nil {
+				ib.OnSubmit(ib.Value)
+			}
 		} else if ev.CharCode >= 32 {
 			head := append([]rune{}, runes[:ib.CursorPos]...)
 			tail := append([]rune{}, runes[ib.CursorPos:]...)
@@ -389,6 +423,152 @@ func (p *Panel) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
 	for _, child := range p.Children {
 		if child.IsVisible() {
 			child.DrawOverlay(c, p.AbsX, p.AbsY, p.LastW, p.LastH)
+		}
+	}
+}
+
+// -------------------------------------------------------------------------
+// MenuStrip
+// -------------------------------------------------------------------------
+
+type MenuItem struct {
+	Label  string
+	Action func()
+}
+
+type MenuCategory struct {
+	Label string
+	Items []MenuItem
+}
+
+// MenuStrip is a top-level horizontal bar containing clickable categories that open dropdowns.
+type MenuStrip struct {
+	BaseWidget
+	Categories []MenuCategory
+	OpenIdx    int
+}
+
+func NewMenuStrip(categories []MenuCategory) *MenuStrip {
+	base := NewBaseWidget(0, 0, 0, 1)
+	base.SetPercentLayout(0, 0, 100, 0)
+	base.IsFocusable = true
+	return &MenuStrip{BaseWidget: base, Categories: categories, OpenIdx: -1}
+}
+
+// HitTest overrides BaseWidget.HitTest to capture all clicks while a menu is open.
+func (m *MenuStrip) HitTest(mx, my int) bool {
+	if m.OpenIdx >= 0 {
+		return true
+	}
+	return m.BaseWidget.HitTest(mx, my)
+}
+
+func (m *MenuStrip) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	m.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	bg, fg := c.theme.BgWidget, c.theme.FgWindow
+	for i := 0; i < m.LastW; i++ {
+		c.DrawCell(m.AbsX+i, m.AbsY, " ", bg, fg)
+	}
+
+	cursorX := m.AbsX + 1
+	for i, cat := range m.Categories {
+		lbl := " " + cat.Label + " "
+		itemBg, itemFg := bg, fg
+		if i == m.OpenIdx {
+			itemBg, itemFg = c.theme.Primary, c.theme.BgWindow
+		}
+		c.DrawText(cursorX, m.AbsY, lbl, itemBg, itemFg)
+		cursorX += len([]rune(lbl))
+	}
+}
+
+func (m *MenuStrip) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
+	if m.OpenIdx < 0 || m.OpenIdx >= len(m.Categories) {
+		return
+	}
+
+	cat := m.Categories[m.OpenIdx]
+
+	cursorX := m.AbsX + 1
+	for i := 0; i < m.OpenIdx; i++ {
+		cursorX += len([]rune(" " + m.Categories[i].Label + " "))
+	}
+
+	dropX := cursorX
+	dropY := m.AbsY + 1
+	dropW := 15
+	for _, item := range cat.Items {
+		w := len([]rune(item.Label)) + 4
+		if w > dropW {
+			dropW = w
+		}
+	}
+	dropH := len(cat.Items) + 2
+
+	for i := 1; i <= dropW; i++ {
+		c.DrawCell(dropX+i, dropY+dropH-1, "░", c.GetCellBg(dropX+i, dropY+dropH-1), c.theme.Disabled)
+	}
+	for i := 0; i < dropH-1; i++ {
+		c.DrawCell(dropX+dropW, dropY+i+1, "░", c.GetCellBg(dropX+dropW, dropY+i+1), c.theme.Disabled)
+	}
+
+	bg, fg := c.theme.BgWindow, c.theme.FgWindow
+	for iy := 0; iy < dropH-1; iy++ {
+		for ix := 0; ix < dropW; ix++ {
+			c.DrawCell(dropX+ix, dropY+iy, " ", bg, fg)
+		}
+	}
+
+	for i, item := range cat.Items {
+		c.DrawText(dropX+2, dropY+1+i, item.Label, bg, fg)
+	}
+}
+
+func (m *MenuStrip) HandleEvent(ev Event) {
+	if ev.Type == EventMouseDown {
+		if ev.MouseY == m.AbsY {
+			cursorX := m.AbsX + 1
+			for i, cat := range m.Categories {
+				lblLen := len([]rune(" " + cat.Label + " "))
+				if ev.MouseX >= cursorX && ev.MouseX < cursorX+lblLen {
+					if m.OpenIdx == i {
+						m.OpenIdx = -1
+					} else {
+						m.OpenIdx = i
+					}
+					return
+				}
+				cursorX += lblLen
+			}
+			m.OpenIdx = -1
+		} else if m.OpenIdx >= 0 {
+			cat := m.Categories[m.OpenIdx]
+
+			cursorX := m.AbsX + 1
+			for i := 0; i < m.OpenIdx; i++ {
+				cursorX += len([]rune(" " + m.Categories[i].Label + " "))
+			}
+
+			dropX := cursorX
+			dropY := m.AbsY + 1
+			dropW := 15
+			for _, item := range cat.Items {
+				w := len([]rune(item.Label)) + 4
+				if w > dropW {
+					dropW = w
+				}
+			}
+			dropH := len(cat.Items)
+
+			if ev.MouseX >= dropX && ev.MouseX < dropX+dropW && ev.MouseY > dropY && ev.MouseY <= dropY+dropH {
+				itemIdx := ev.MouseY - dropY - 1
+				if itemIdx >= 0 && itemIdx < len(cat.Items) {
+					if cat.Items[itemIdx].Action != nil {
+						cat.Items[itemIdx].Action()
+					}
+				}
+			}
+			m.OpenIdx = -1
 		}
 	}
 }

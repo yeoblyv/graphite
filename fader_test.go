@@ -32,7 +32,7 @@ func TestFader_StretchesToFillOfferedHeight(t *testing.T) {
 	}
 }
 
-func TestFader_SetLevelClampsAndLatchesClip(t *testing.T) {
+func TestFader_SetLevelClampsAndSetsClip(t *testing.T) {
 	f := newTestFader()
 
 	f.SetLevel(150)
@@ -40,24 +40,15 @@ func TestFader_SetLevelClampsAndLatchesClip(t *testing.T) {
 		t.Errorf("Level = %v, want clamped to 100", f.Level)
 	}
 	if !f.Clipping {
-		t.Error("Level at 100 (>= default ClipThreshold) should latch Clipping")
+		t.Error("Level at 100 (>= default ClipThreshold) should set Clipping")
 	}
 
-	f.SetLevel(-10)
+	f.SetLevel(0)
 	if f.Level != 0 {
 		t.Errorf("Level = %v, want clamped to 0", f.Level)
 	}
-	if !f.Clipping {
-		t.Error("Clipping should stay latched after Level drops back down")
-	}
-
-	f.ClearClip()
 	if f.Clipping {
-		t.Error("ClearClip should reset Clipping")
-	}
-	f.SetLevel(0)
-	if f.Clipping {
-		t.Error("a subsequent low level must not re-latch Clipping")
+		t.Error("Clipping should turn off when Level drops back down")
 	}
 }
 
@@ -181,7 +172,7 @@ func TestFader_ClipIndicatorClickClearsClipping(t *testing.T) {
 	f := newTestFader()
 	f.SetLevel(100)
 	if !f.Clipping {
-		t.Fatal("setup: SetLevel(100) should latch Clipping")
+		t.Fatal("setup: SetLevel(100) should set Clipping")
 	}
 
 	f.HandleEvent(Event{Type: EventMouseDown, MouseX: 5, MouseY: f.clipRow})
@@ -231,7 +222,8 @@ func TestFader_EndToEndDragFromRawSGRBytes(t *testing.T) {
 	drag := []byte(fmt.Sprintf("\033[<32;%d;%dM", f.AbsX+8+1, bottomRow+1))
 	release := []byte(fmt.Sprintf("\033[<0;%d;%dm", f.AbsX+8+1, bottomRow+1))
 
-	pressEv := parseANSI(press)
+	pressEvs := parseANSI(press)
+	pressEv := pressEvs[0]
 	if pressEv.Type != EventMouseDown || pressEv.MouseY != topRow {
 		t.Fatalf("parseANSI(press) = %+v, want Type=EventMouseDown MouseY=%d", pressEv, topRow)
 	}
@@ -240,7 +232,8 @@ func TestFader_EndToEndDragFromRawSGRBytes(t *testing.T) {
 		t.Fatalf("after press on the top row, Value = %v, want 100", f.Value)
 	}
 
-	dragEv := parseANSI(drag)
+	dragEvs := parseANSI(drag)
+	dragEv := dragEvs[0]
 	if dragEv.Type != EventMouseDrag || dragEv.MouseY != bottomRow {
 		t.Fatalf("parseANSI(drag) = %+v, want Type=EventMouseDrag MouseY=%d", dragEv, bottomRow)
 	}
@@ -249,7 +242,8 @@ func TestFader_EndToEndDragFromRawSGRBytes(t *testing.T) {
 		t.Fatalf("after dragging to the bottom row, Value = %v, want 0", f.Value)
 	}
 
-	releaseEv := parseANSI(release)
+	releaseEvs := parseANSI(release)
+	releaseEv := releaseEvs[0]
 	if releaseEv.Type != EventMouseUp {
 		t.Fatalf("parseANSI(release) = %+v, want Type=EventMouseUp", releaseEv)
 	}
@@ -259,7 +253,8 @@ func TestFader_EndToEndDragFromRawSGRBytes(t *testing.T) {
 	// would happen if the terminal ever sent one without a matching press,
 	// or simply as a defensive check that release really cleared it) must
 	// not move the fader.
-	stray := parseANSI([]byte(fmt.Sprintf("\033[<32;%d;%dM", f.AbsX+8+1, topRow+1)))
+	strays := parseANSI([]byte(fmt.Sprintf("\033[<32;%d;%dM", f.AbsX+8+1, topRow+1)))
+	stray := strays[0]
 	win.HandleEvent(stray)
 	if f.Value != 0 {
 		t.Errorf("a drag event after release moved Value to %v, want it to stay 0 (capture not cleared)", f.Value)

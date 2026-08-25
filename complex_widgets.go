@@ -2,7 +2,10 @@ package Graphite
 
 import (
 	"math"
+	"strings"
 	"time"
+
+	"github.com/atotto/clipboard"
 )
 
 // -------------------------------------------------------------------------
@@ -78,7 +81,7 @@ func (ta *TextArea) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	ta.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
 	bg, fg := c.theme.BgWidget, c.theme.FgWindow
 	if ta.IsFocused {
-		bg, fg = c.theme.BgFocused, c.theme.FgFocused
+		bg, fg = RGB(45, 53, 62), c.theme.FgFocused
 	}
 
 	for iy := 0; iy < ta.LastH; iy++ {
@@ -226,24 +229,73 @@ func (ta *TextArea) HandleEvent(ev Event) {
 			tail := append([]rune{}, runes[ta.CursorPos:]...)
 			ta.Text = string(append(head, append([]rune{'\n'}, tail...)...))
 			ta.CursorPos++
+		} else if ev.Key == KeyCtrlC {
+			clipboard.WriteAll(ta.Text)
+		} else if ev.Key == KeyCtrlX {
+			clipboard.WriteAll(ta.Text)
+			ta.Text = ""
+			ta.CursorPos = 0
+		} else if ev.Key == KeyCtrlV {
+			text, err := clipboard.ReadAll()
+			if err == nil {
+				// Normalize newlines
+				text = strings.ReplaceAll(text, "\r\n", "\n")
+				head := append([]rune{}, runes[:ta.CursorPos]...)
+				tail := append([]rune{}, runes[ta.CursorPos:]...)
+				pasted := []rune(text)
+				ta.Text = string(append(append(head, pasted...), tail...))
+				ta.CursorPos += len(pasted)
+			}
 		} else if ev.CharCode >= 32 {
 			head := append([]rune{}, runes[:ta.CursorPos]...)
 			tail := append([]rune{}, runes[ta.CursorPos:]...)
 			ta.Text = string(append(head, append([]rune{ev.CharCode}, tail...)...))
 			ta.CursorPos++
 		}
-	} else if ev.Type == EventMouseDown {
-		clickY := ev.MouseY - ta.AbsY + ta.Scroll
-		clickX := ev.MouseX - ta.AbsX
-
-		if clickY >= 0 && clickY < len(lines) {
-			l := lines[clickY]
-			if clickX > len(l.Runes) {
-				clickX = len(l.Runes)
+	} else if ev.Type == EventMouseDown || ev.Type == EventMouseDrag {
+		if ev.MouseX == ta.AbsX+ta.LastW-1 && len(lines) > ta.LastH {
+			maxScroll := len(lines) - ta.LastH
+			if maxScroll < 0 {
+				maxScroll = 0
 			}
-			ta.CursorPos = l.Start + clickX
-		} else if clickY >= len(lines) {
-			ta.CursorPos = len(runes)
+			sH := int(math.Max(1, float64((ta.LastH*ta.LastH)/len(lines))))
+			relY := ev.MouseY - ta.AbsY
+			if relY < sH/2 {
+				ta.Scroll = 0
+			} else if relY >= ta.LastH-sH/2 {
+				ta.Scroll = maxScroll
+			} else {
+				fraction := float64(relY-sH/2) / float64(ta.LastH-sH)
+				ta.Scroll = int(math.Round(fraction * float64(maxScroll)))
+			}
+			return
+		}
+
+		if ev.Type == EventMouseDown {
+			clickY := ev.MouseY - ta.AbsY + ta.Scroll
+			clickX := ev.MouseX - ta.AbsX
+
+			if clickY >= 0 && clickY < len(lines) {
+				l := lines[clickY]
+				if clickX > len(l.Runes) {
+					clickX = len(l.Runes)
+				}
+				ta.CursorPos = l.Start + clickX
+			} else if clickY >= len(lines) {
+				ta.CursorPos = len(runes)
+			}
+		}
+	} else if ev.Type == EventMouseScrollUp {
+		if ta.Scroll > 0 {
+			ta.Scroll--
+		}
+	} else if ev.Type == EventMouseScrollDown {
+		maxScroll := len(lines) - ta.LastH
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if ta.Scroll < maxScroll {
+			ta.Scroll++
 		}
 	}
 }
@@ -259,6 +311,10 @@ type ListBox struct {
 	Selected int
 	Scroll   int
 	OnSelect func(int, string)
+
+	lastClickTime time.Time
+	lastClickIdx  int
+	OnDoubleClick func(int, string)
 }
 
 // NewListBox creates a ListBox at (x, y) listing items. onSelect, if
@@ -275,7 +331,7 @@ func (lb *ListBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	lb.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
 	bg := c.theme.BgWidget
 	if lb.IsFocused {
-		bg = c.theme.BgFocused
+		bg = RGB(45, 53, 62)
 	}
 
 	for iy := 0; iy < lb.LastH; iy++ {
@@ -295,7 +351,23 @@ func (lb *ListBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		for ix := 0; ix < lb.LastW-1; ix++ {
 			c.DrawCell(lb.AbsX+ix, lb.AbsY+i, " ", ibg, c.theme.FgWindow)
 		}
-		c.DrawText(lb.AbsX, lb.AbsY+i, prefix+lb.Items[idx], ibg, iffg)
+		c.DrawTextBounded(lb.AbsX, lb.AbsY+i, lb.LastW, prefix+lb.Items[idx], ibg, iffg)
+	}
+
+	if len(lb.Items) > lb.LastH {
+		sH := int(math.Max(1, float64((lb.LastH*lb.LastH)/len(lb.Items))))
+		tY := 0
+		maxScroll := len(lb.Items) - lb.LastH
+		if maxScroll > 0 {
+			tY = (lb.Scroll * (lb.LastH - sH)) / maxScroll
+		}
+		for i := 0; i < lb.LastH; i++ {
+			if i >= tY && i < tY+sH {
+				c.DrawCell(lb.AbsX+lb.LastW-1, lb.AbsY+i, "█", bg, c.theme.Primary)
+			} else {
+				c.DrawCell(lb.AbsX+lb.LastW-1, lb.AbsY+i, "│", bg, c.theme.FgDisabled)
+			}
+		}
 	}
 }
 
@@ -313,22 +385,65 @@ func (lb *ListBox) HandleEvent(ev Event) {
 			if lb.Selected >= lb.Scroll+lb.LastH {
 				lb.Scroll = lb.Selected - lb.LastH + 1
 			}
-		} else if ev.Key == KeyEnter && lb.OnSelect != nil && lb.Selected >= 0 && lb.Selected < len(lb.Items) {
+		} else if ev.Key == KeyEnter && lb.Selected >= 0 && lb.Selected < len(lb.Items) {
 			// Items is a plain exported slice a caller can reassign to a
 			// shorter one without resetting Selected, so this bound must be
 			// re-checked here rather than assumed from the Up/Down clamps.
-			lb.OnSelect(lb.Selected, lb.Items[lb.Selected])
+			if lb.OnDoubleClick != nil {
+				lb.OnDoubleClick(lb.Selected, lb.Items[lb.Selected])
+			} else if lb.OnSelect != nil {
+				lb.OnSelect(lb.Selected, lb.Items[lb.Selected])
+			}
 		}
-	} else if ev.Type == EventMouseDown {
-		clickedRow := ev.MouseY - lb.AbsY
-		if clickedRow >= 0 && clickedRow < lb.LastH {
-			idx := lb.Scroll + clickedRow
-			if idx >= 0 && idx < len(lb.Items) {
-				lb.Selected = idx
-				if lb.OnSelect != nil {
-					lb.OnSelect(lb.Selected, lb.Items[lb.Selected])
+	} else if ev.Type == EventMouseDown || ev.Type == EventMouseDrag {
+		if ev.MouseX == lb.AbsX+lb.LastW-1 && len(lb.Items) > lb.LastH {
+			maxScroll := len(lb.Items) - lb.LastH
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+			sH := int(math.Max(1, float64((lb.LastH*lb.LastH)/len(lb.Items))))
+			relY := ev.MouseY - lb.AbsY
+			if relY < sH/2 {
+				lb.Scroll = 0
+			} else if relY >= lb.LastH-sH/2 {
+				lb.Scroll = maxScroll
+			} else {
+				fraction := float64(relY-sH/2) / float64(lb.LastH-sH)
+				lb.Scroll = int(math.Round(fraction * float64(maxScroll)))
+			}
+			return
+		}
+
+		if ev.Type == EventMouseDown {
+			clickedRow := ev.MouseY - lb.AbsY
+			if clickedRow >= 0 && clickedRow < lb.LastH {
+				idx := lb.Scroll + clickedRow
+				if idx >= 0 && idx < len(lb.Items) {
+					lb.Selected = idx
+					if lb.OnSelect != nil {
+						lb.OnSelect(lb.Selected, lb.Items[lb.Selected])
+					}
+
+					now := time.Now()
+					if lb.OnDoubleClick != nil && lb.lastClickIdx == idx && now.Sub(lb.lastClickTime) < 500*time.Millisecond {
+						lb.OnDoubleClick(lb.Selected, lb.Items[lb.Selected])
+					}
+					lb.lastClickIdx = idx
+					lb.lastClickTime = now
 				}
 			}
+		}
+	} else if ev.Type == EventMouseScrollUp {
+		if lb.Scroll > 0 {
+			lb.Scroll--
+		}
+	} else if ev.Type == EventMouseScrollDown {
+		maxScroll := len(lb.Items) - lb.LastH
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if lb.Scroll < maxScroll {
+			lb.Scroll++
 		}
 	}
 }
@@ -390,7 +505,7 @@ func (tl *TodoList) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	tl.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
 	bg := c.theme.BgWindow
 	if tl.IsFocused {
-		bg = c.theme.BgFocused
+		bg = RGB(45, 53, 62)
 	}
 
 	for iy := 0; iy < tl.LastH; iy++ {
@@ -420,7 +535,23 @@ func (tl *TodoList) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		for ix := 0; ix < tl.LastW-1; ix++ {
 			c.DrawCell(tl.AbsX+ix, tl.AbsY+i, " ", ibg, c.theme.FgWindow)
 		}
-		c.DrawText(tl.AbsX, tl.AbsY+i, box+tl.Items[idx].Text, ibg, iffg)
+		c.DrawTextBounded(tl.AbsX, tl.AbsY+i, tl.LastW, box+tl.Items[idx].Text, ibg, iffg)
+	}
+
+	if len(tl.Items) > tl.LastH {
+		sH := int(math.Max(1, float64((tl.LastH*tl.LastH)/len(tl.Items))))
+		tY := 0
+		maxScroll := len(tl.Items) - tl.LastH
+		if maxScroll > 0 {
+			tY = (tl.Scroll * (tl.LastH - sH)) / maxScroll
+		}
+		for i := 0; i < tl.LastH; i++ {
+			if i >= tY && i < tY+sH {
+				c.DrawCell(tl.AbsX+tl.LastW-1, tl.AbsY+i, "█", bg, c.theme.Primary)
+			} else {
+				c.DrawCell(tl.AbsX+tl.LastW-1, tl.AbsY+i, "│", bg, c.theme.FgDisabled)
+			}
+		}
 	}
 }
 
@@ -453,18 +584,50 @@ func (tl *TodoList) HandleEvent(ev Event) {
 				tl.Items[tl.Selected].State = TodoDone
 			}
 		}
-	} else if ev.Type == EventMouseDown {
-		clickedRow := ev.MouseY - tl.AbsY
-		if clickedRow >= 0 && clickedRow < tl.LastH {
-			idx := tl.Scroll + clickedRow
-			if idx >= 0 && idx < len(tl.Items) {
-				tl.Selected = idx
-				if tl.Items[tl.Selected].State == TodoDone {
-					tl.Items[tl.Selected].State = TodoPending
-				} else {
-					tl.Items[tl.Selected].State = TodoDone
+	} else if ev.Type == EventMouseDown || ev.Type == EventMouseDrag {
+		if ev.MouseX == tl.AbsX+tl.LastW-1 && len(tl.Items) > tl.LastH {
+			maxScroll := len(tl.Items) - tl.LastH
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+			sH := int(math.Max(1, float64((tl.LastH*tl.LastH)/len(tl.Items))))
+			relY := ev.MouseY - tl.AbsY
+			if relY < sH/2 {
+				tl.Scroll = 0
+			} else if relY >= tl.LastH-sH/2 {
+				tl.Scroll = maxScroll
+			} else {
+				fraction := float64(relY-sH/2) / float64(tl.LastH-sH)
+				tl.Scroll = int(math.Round(fraction * float64(maxScroll)))
+			}
+			return
+		}
+
+		if ev.Type == EventMouseDown {
+			clickedRow := ev.MouseY - tl.AbsY
+			if clickedRow >= 0 && clickedRow < tl.LastH {
+				idx := tl.Scroll + clickedRow
+				if idx >= 0 && idx < len(tl.Items) {
+					tl.Selected = idx
+					if tl.Items[tl.Selected].State == TodoDone {
+						tl.Items[tl.Selected].State = TodoPending
+					} else {
+						tl.Items[tl.Selected].State = TodoDone
+					}
 				}
 			}
+		}
+	} else if ev.Type == EventMouseScrollUp {
+		if tl.Scroll > 0 {
+			tl.Scroll--
+		}
+	} else if ev.Type == EventMouseScrollDown {
+		maxScroll := len(tl.Items) - tl.LastH
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if tl.Scroll < maxScroll {
+			tl.Scroll++
 		}
 	}
 }
@@ -591,6 +754,136 @@ func (tv *TabView) HandleEvent(ev Event) {
 			curX += labelW
 			if tv.Style == TabDefault {
 				curX += 1
+			}
+		}
+	}
+}
+
+// -------------------------------------------------------------------------
+// ComboBox
+// -------------------------------------------------------------------------
+
+// ComboBox is a focusable dropdown menu.
+type ComboBox struct {
+	BaseWidget
+	Items    []string
+	Selected int
+	IsOpen   bool
+	OnSelect func(idx int, item string)
+}
+
+// NewComboBox creates a ComboBox at (x, y) with the given fixed width.
+func NewComboBox(x, y, w int, items []string, onSelect func(int, string)) *ComboBox {
+	base := NewBaseWidget(x, y, w, 1)
+	base.IsFocusable = true
+	return &ComboBox{BaseWidget: base, Items: items, OnSelect: onSelect}
+}
+
+// DrawRelative draws the closed state of the ComboBox.
+func (cb *ComboBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
+	cb.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+
+	// If we lost focus, close the dropdown automatically
+	if !cb.IsFocused {
+		cb.IsOpen = false
+	}
+
+	bg, fg := c.theme.BgWidget, c.theme.FgWindow
+	if cb.IsFocused {
+		bg = c.theme.BgFocused
+	}
+
+	for ix := 0; ix < cb.LastW; ix++ {
+		c.DrawCell(cb.AbsX+ix, cb.AbsY, " ", bg, fg)
+	}
+
+	text := ""
+	if cb.Selected >= 0 && cb.Selected < len(cb.Items) {
+		text = cb.Items[cb.Selected]
+	}
+
+	// Draw the selected text and a dropdown arrow
+	c.DrawTextBounded(cb.AbsX+1, cb.AbsY, cb.LastW-2, text, bg, fg)
+	c.DrawCell(cb.AbsX+cb.LastW-1, cb.AbsY, "▼", bg, fg)
+}
+
+// DrawOverlay draws the expanded dropdown list if IsOpen is true.
+func (cb *ComboBox) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
+	if !cb.IsOpen || len(cb.Items) == 0 {
+		return
+	}
+
+	h := len(cb.Items)
+	if h > 5 {
+		h = 5
+	}
+
+	// Ensure the overlay doesn't exceed screen bottom
+	// If it does, we could draw it going up, but for now just clip/draw down.
+	// We draw it starting at AbsY + 1
+	bg, fg := c.theme.BgWidget, c.theme.FgWindow
+
+	for iy := 0; iy < h; iy++ {
+		for ix := 0; ix < cb.LastW; ix++ {
+			c.DrawCell(cb.AbsX+ix, cb.AbsY+1+iy, " ", bg, fg)
+		}
+
+		idx := iy // Note: no scrolling implemented yet for >5 items, just show first 5
+		if idx < len(cb.Items) {
+			ibg := bg
+			if ix := cb.Selected; ix == idx {
+				ibg = c.theme.Primary
+				for ix2 := 0; ix2 < cb.LastW; ix2++ {
+					c.DrawCell(cb.AbsX+ix2, cb.AbsY+1+iy, " ", ibg, fg)
+				}
+			}
+			c.DrawTextBounded(cb.AbsX+1, cb.AbsY+1+iy, cb.LastW-2, cb.Items[idx], ibg, fg)
+		}
+	}
+}
+
+// HitTest overrides BaseWidget.HitTest to expand the hit area when open.
+func (cb *ComboBox) HitTest(mx, my int) bool {
+	if cb.IsOpen {
+		h := len(cb.Items)
+		if h > 5 {
+			h = 5
+		}
+		return mx >= cb.AbsX && mx < cb.AbsX+cb.LastW && my >= cb.AbsY && my <= cb.AbsY+h
+	}
+	return cb.BaseWidget.HitTest(mx, my)
+}
+
+// HandleEvent processes input.
+func (cb *ComboBox) HandleEvent(ev Event) {
+	if ev.Type == EventMouseDown {
+		if !cb.IsOpen {
+			cb.IsOpen = true
+		} else {
+			// Clicked somewhere in the overlay or on the main widget
+			if ev.MouseY > cb.AbsY {
+				idx := ev.MouseY - cb.AbsY - 1
+				if idx >= 0 && idx < len(cb.Items) {
+					cb.Selected = idx
+					if cb.OnSelect != nil {
+						cb.OnSelect(cb.Selected, cb.Items[cb.Selected])
+					}
+				}
+			}
+			cb.IsOpen = false
+		}
+	} else if ev.Type == EventKey {
+		if ev.Key == KeyEnter {
+			cb.IsOpen = !cb.IsOpen
+		} else if ev.Key == KeyUp && cb.Selected > 0 {
+			cb.Selected--
+			if cb.OnSelect != nil {
+				cb.OnSelect(cb.Selected, cb.Items[cb.Selected])
+			}
+		} else if ev.Key == KeyDown && cb.Selected < len(cb.Items)-1 {
+			cb.Selected++
+			if cb.OnSelect != nil {
+				cb.OnSelect(cb.Selected, cb.Items[cb.Selected])
 			}
 		}
 	}

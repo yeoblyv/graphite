@@ -8,16 +8,18 @@
 
 .PARAMETER Target
     One of: All (default), windows-amd64, windows-386, linux-amd64, linux-386,
-    Build, Test, Vet, Fmt, Lint, Tidy, Clean.
+    darwin-amd64, darwin-arm64, Build, Test, Vet, Fmt, Lint, Tidy, Clean.
 
 .EXAMPLE
     ./build.ps1
     ./build.ps1 -Target linux-amd64
+    ./build.ps1 -Target darwin-arm64
     ./build.ps1 -Target Test
 #>
 param(
     [ValidateSet(
         "All", "windows-amd64", "windows-386", "linux-amd64", "linux-386",
+        "darwin-amd64", "darwin-arm64",
         "Build", "Test", "Vet", "Fmt", "Lint", "Tidy", "Clean"
     )]
     [string]$Target = "All"
@@ -27,7 +29,7 @@ $ErrorActionPreference = "Stop"
 
 $Dist = "dist"
 # name => package path, one entry per `package main` program in this repo.
-$Programs = @{ "demo" = "./demo"; "showcase" = "./showcase" }
+$Programs = @{ "gphedit" = "./gphedit"; "showcase" = "./showcase"; "promo" = "./promo" }
 
 function Build-Target {
     param([string]$Goos, [string]$Goarch, [string]$Ext)
@@ -55,11 +57,15 @@ switch ($Target) {
         Build-Target -Goos "windows" -Goarch "386" -Ext ".exe"
         Build-Target -Goos "linux" -Goarch "amd64" -Ext ""
         Build-Target -Goos "linux" -Goarch "386" -Ext ""
+        Build-Target -Goos "darwin" -Goarch "amd64" -Ext ""
+        Build-Target -Goos "darwin" -Goarch "arm64" -Ext ""
     }
     "windows-amd64" { Build-Target -Goos "windows" -Goarch "amd64" -Ext ".exe" }
     "windows-386"   { Build-Target -Goos "windows" -Goarch "386" -Ext ".exe" }
     "linux-amd64"   { Build-Target -Goos "linux" -Goarch "amd64" -Ext "" }
     "linux-386"     { Build-Target -Goos "linux" -Goarch "386" -Ext "" }
+    "darwin-amd64"  { Build-Target -Goos "darwin" -Goarch "amd64" -Ext "" }
+    "darwin-arm64"  { Build-Target -Goos "darwin" -Goarch "arm64" -Ext "" }
     "Build" {
         go build ./...
     }

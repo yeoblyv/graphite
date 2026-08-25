@@ -95,21 +95,17 @@ func NewFader(x, y, w int, channelName string, labelColor Color) *Fader {
 	}
 }
 
-// SetLevel sets the independent live VU level (0-100), clamped, and latches
-// Clipping once it reaches ClipThreshold — by default, the same point the
+// SetLevel sets the independent live VU level (0-100), clamped, and lights
+// Clipping while it reaches ClipThreshold — by default, the same point the
 // meter turns red (faderDangerZonePercent), not only a full 100% peak.
-// Clipping stays latched — even if Level later drops back down — until
-// ClearClip is called or the clip indicator is clicked, so a brief peak
-// isn't missed, matching how a real clip light behaves.
+// Clipping turns off automatically when Level drops back down.
 func (f *Fader) SetLevel(level float64) {
 	f.Level = math.Min(math.Max(level, 0), 100)
 	threshold := f.ClipThreshold
 	if threshold <= 0 {
 		threshold = faderDangerZonePercent
 	}
-	if f.Level >= threshold {
-		f.Clipping = true
-	}
+	f.Clipping = f.Level >= threshold
 }
 
 // ClearClip resets the latched clip indicator.
@@ -232,7 +228,11 @@ func (f *Fader) drawClipIndicator(c *Canvas) {
 	if f.Clipping {
 		led = c.theme.Danger
 	}
-	c.DrawText(f.AbsX, f.clipRow, "⬤ Clipping", bg, led)
+	textX := f.AbsX
+	if f.ShowMeter {
+		textX += 4
+	}
+	c.DrawText(textX, f.clipRow, "⬤ Clipping", bg, led)
 }
 
 // drawButtonsRow paints Mute and Solo as icon-only buttons sharing one row
@@ -425,14 +425,13 @@ func (f *Fader) isDoubleClick(ev Event) bool {
 	return isDouble
 }
 
-// ShowFaderValueEditor opens a modal titled title with an input field
-// pre-filled with current (formatted to one decimal place). Enter/click on
-// OK parses it as a number clamped to 0-100 and calls onConfirm; Cancel or
-// Esc closes without calling it. This is what Fader.OnDoubleClick is
-// typically wired to.
-func ShowFaderValueEditor(app *Application, title string, current float64, onConfirm func(float64)) {
+// ShowValueEditor opens a modal titled title with an input field
+// pre-filled with current. If the user submits a valid number, the modal
+// closes and onConfirm is called; otherwise, an error modal stacks on top
+// of it.
+func ShowValueEditor(app *Application, title string, current, min, max float64, onConfirm func(float64)) {
 	mod := NewWindow(44, 9, " "+title+" ")
-	mod.AddWidget(NewLabel(2, 1, "Value (0-100):"))
+	mod.AddWidget(NewLabel(2, 1, fmt.Sprintf("Value (%g-%g):", min, max)))
 
 	input := NewInputBox(2, 3, 30, "")
 	input.Value = fmt.Sprintf("%.1f", current)
@@ -442,17 +441,21 @@ func ShowFaderValueEditor(app *Application, title string, current float64, onCon
 	errLbl := NewLabel(2, 5, "")
 	mod.AddWidget(errLbl)
 
-	confirm := func() {
-		v, err := strconv.ParseFloat(strings.TrimSpace(input.Value), 64)
-		if err != nil || v < 0 || v > 100 {
-			errLbl.SetText("Enter a number between 0 and 100.")
+	confirm := func(valStr string) {
+		v, err := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
+		if err != nil || v < min || v > max {
+			errLbl.SetText(fmt.Sprintf("Enter a number between %g and %g.", min, max))
 			return
 		}
 		app.CloseModal()
 		onConfirm(v)
 	}
 
-	mod.AddWidget(NewButton(2, 7, "OK", BtnSuccess, confirm))
+	input.OnSubmit = confirm
+
+	mod.AddWidget(NewButton(2, 7, "OK", BtnSuccess, func() {
+		confirm(input.Value)
+	}))
 	mod.AddWidget(NewButton(14, 7, "Cancel", BtnDefault, func() {
 		app.CloseModal()
 	}))

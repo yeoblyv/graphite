@@ -7,6 +7,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	"github.com/yeoblyv/graphite"
@@ -90,6 +91,14 @@ func buildWidgetsTab(pb *Graphite.ProgressBar) []Graphite.Widget {
 	colLeft.AddWidget(Graphite.NewButton(0, 12, "Info", Graphite.BtnInfo, nil))
 	colLeft.AddWidget(Graphite.NewInputBox(0, 14, 30, "Input: "))
 
+	colLeft.AddWidget(Graphite.NewLabel(0, 16, "ComboBox:"))
+	cb := Graphite.NewComboBox(0, 17, 20, []string{"Option 1", "Option 2", "Option 3"}, nil)
+	colLeft.AddWidget(cb)
+
+	colLeft.AddWidget(Graphite.NewLabel(0, 19, "Slider:"))
+	slider := Graphite.NewSlider(0, 20, 30, "Level: ", 0, 100)
+	colLeft.AddWidget(slider)
+
 	colRight := Graphite.NewPanel(0, 2, 0, 0)
 	colRight.SetPercentLayout(52, 0, 48, 90)
 	colRight.AddWidget(pb)
@@ -105,6 +114,11 @@ func buildWidgetsTab(pb *Graphite.ProgressBar) []Graphite.Widget {
 	ta := Graphite.NewTextArea(0, 16, 0, 4)
 	ta.SetText("This is a multi-line TextArea.\nIt wraps long lines automatically and\nsupports full cursor navigation.")
 	colRight.AddWidget(ta)
+
+	gb := Graphite.NewGroupBox(0, 21, 40, 8, "GroupBox Example")
+	gb.AddWidget(Graphite.NewLabel(0, 0, "Widgets inside GroupBox:"))
+	gb.AddWidget(Graphite.NewButton(0, 2, "Action", Graphite.BtnInfo, nil))
+	colRight.AddWidget(gb)
 
 	return []Graphite.Widget{colLeft, colRight}
 }
@@ -216,7 +230,7 @@ func buildMixerTab(app *Graphite.Application) ([]Graphite.Widget, *Graphite.Fade
 
 	mic := Graphite.NewFader(0, 0, 16, "MIC 1", Graphite.RGB(235, 203, 139))
 	mic.OnDoubleClick = func() {
-		Graphite.ShowFaderValueEditor(app, "MIC 1 Value", mic.Value, func(v float64) {
+		Graphite.ShowValueEditor(app, "MIC 1 Value", mic.Value, 0, 100, func(v float64) {
 			mic.Value = v
 		})
 	}
@@ -224,7 +238,7 @@ func buildMixerTab(app *Graphite.Application) ([]Graphite.Widget, *Graphite.Fade
 	desktop := Graphite.NewFader(0, 0, 16, "DESKTOP", Graphite.RGB(136, 192, 208))
 	desktop.ShowSolo = false // an optional feature turned off, for contrast.
 	desktop.OnDoubleClick = func() {
-		Graphite.ShowFaderValueEditor(app, "DESKTOP Value", desktop.Value, func(v float64) {
+		Graphite.ShowValueEditor(app, "DESKTOP Value", desktop.Value, 0, 100, func(v float64) {
 			desktop.Value = v
 		})
 	}
@@ -232,7 +246,7 @@ func buildMixerTab(app *Graphite.Application) ([]Graphite.Widget, *Graphite.Fade
 	aux := Graphite.NewFader(0, 0, 12, "AUX", Graphite.RGB(191, 97, 106))
 	aux.ShowMeter, aux.ShowClip, aux.ShowMute, aux.ShowSolo = false, false, false, false
 	aux.OnDoubleClick = func() {
-		Graphite.ShowFaderValueEditor(app, "AUX Value", aux.Value, func(v float64) {
+		Graphite.ShowValueEditor(app, "AUX Value", aux.Value, 0, 100, func(v float64) {
 			aux.Value = v
 		})
 	}
@@ -243,6 +257,116 @@ func buildMixerTab(app *Graphite.Application) ([]Graphite.Widget, *Graphite.Fade
 	panel.AddWidget(row)
 
 	return []Graphite.Widget{panel}, mic, desktop
+}
+
+// buildPianoTab demonstrates PianoRoll in both orientations: a horizontal
+// keyboard and a vertical one, both playable by mouse (click or drag
+// across keys to glissando) or the PC keyboard (see PianoRoll's own doc
+// comment for the typing-keyboard-as-piano layout: the Z row plays one
+// octave, the Q row the next octave up). There's no real audio pipeline
+// in this library or this demo — see the separate graphite/audio package
+// for that — so a status label shows the name of whatever note last
+// started or stopped sounding instead.
+func buildPianoTab() ([]Graphite.Widget, *Graphite.PianoRoll, *Graphite.PianoRoll, *Graphite.Label) {
+	panel := Graphite.NewPanel(0, 2, 0, 0)
+	panel.SetPercentLayout(0, 0, 100, 90)
+	panel.AddWidget(Graphite.NewLabel(0, 0,
+		"Click/drag keys to play. PC keyboard: Z row = one octave, Q row = next octave up. Left/Right: transpose."))
+
+	status := Graphite.NewLabel(0, 1, "(no note yet)")
+	panel.AddWidget(status)
+
+	horiz := Graphite.NewPianoRoll(0, 3, 0, 8, Graphite.PianoHorizontal, 48) // C3
+	panel.AddWidget(horiz)
+
+	panel.AddWidget(Graphite.NewLabel(0, 12, "Vertical orientation:"))
+	vert := Graphite.NewPianoRoll(0, 14, 24, 0, Graphite.PianoVertical, 48)
+	panel.AddWidget(vert)
+
+	return []Graphite.Widget{panel}, horiz, vert, status
+}
+
+// buildImageTab demonstrates the GphImage format and Image widget.
+func buildImageTab(theme Graphite.Theme, app *Graphite.Application) []Graphite.Widget {
+	panel := Graphite.NewPanel(0, 2, 0, 0)
+	panel.SetPercentLayout(0, 0, 100, 90)
+	panel.AddWidget(Graphite.NewLabel(0, 0, "GPH Image Viewer (synthetic in-memory animated image demonstrating dithering and transparency):"))
+
+	width, height := 50, 16
+	img := &Graphite.GphImage{
+		Width:   width,
+		Height:  height,
+		Mode:    Graphite.PlaybackBoomerang,
+		DelayMs: 80,
+		Frames:  make([][]Graphite.GphPixel, 15),
+	}
+
+	for f := 0; f < 15; f++ {
+		frame := make([]Graphite.GphPixel, width*height)
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				// Offset level by frame to create animation
+				level := uint8(((x * 2) / width) + ((y * 2) / height) + f%5)
+				if level > 4 {
+					level = 4
+				}
+
+				bg := theme.BgWidget
+				fg := theme.Primary
+				if (x+y+f)%2 == 0 {
+					fg = theme.Success
+				}
+
+				// Demonstrate transparency in the center, moving with frame
+				if x > 15 && x < 35 && y > 5 && y < 11 {
+					bg = Graphite.ColorNone
+					level = uint8((x + y + f) % 5)
+				}
+
+				frame[y*width+x] = Graphite.GphPixel{
+					Bg:    bg,
+					Fg:    fg,
+					Level: level,
+				}
+			}
+		}
+		img.Frames[f] = frame
+	}
+
+	imgWidget := Graphite.NewImage(0, 5, img)
+	imgWidget.Play(app)
+
+	loadBtn := Graphite.NewButton(0, 2, "Load .gph File", Graphite.BtnInfo, func() {
+		Graphite.ShowFilePicker(app, ".", func(path string) {
+			f, err := os.Open(path)
+			if err != nil {
+				app.ShowMessage("Error", "Could not open file: "+err.Error(), Graphite.BtnDanger)
+				return
+			}
+			defer f.Close()
+
+			gph, err := Graphite.ReadGph(f)
+			if err != nil {
+				app.ShowMessage("Error", "Could not parse .gph file: "+err.Error(), Graphite.BtnDanger)
+				return
+			}
+
+			imgWidget.Stop()
+			imgWidget.Img = gph
+			imgWidget.Play(app)
+		})
+	})
+
+	autoSizeCb := Graphite.NewCheckbox(25, 2, "Auto Size (Stretch)", true)
+	autoSizeCb.OnChange = func(checked bool) {
+		imgWidget.AutoSize = checked
+	}
+
+	panel.AddWidget(loadBtn)
+	panel.AddWidget(autoSizeCb)
+	panel.AddWidget(imgWidget)
+
+	return []Graphite.Widget{panel}
 }
 
 func main() {
@@ -264,6 +388,21 @@ func main() {
 	tTheme := buildThemeTab(theme)
 	tModals := buildModalsTab(app)
 	tMixer, micFader, desktopFader := buildMixerTab(app)
+	tPiano, pianoHoriz, pianoVert, pianoStatus := buildPianoTab()
+	tImage := buildImageTab(theme, app)
+
+	noteOnStatus := func(source string) func(note, velocity uint8) {
+		return func(note, velocity uint8) {
+			pianoStatus.SetText(fmt.Sprintf("%s: NOTE ON  %-4s (velocity %d)", source, Graphite.NoteName(note), velocity))
+		}
+	}
+	noteOffStatus := func(source string) func(note uint8) {
+		return func(note uint8) {
+			pianoStatus.SetText(fmt.Sprintf("%s: NOTE OFF %s", source, Graphite.NoteName(note)))
+		}
+	}
+	pianoHoriz.OnNoteOn, pianoHoriz.OnNoteOff = noteOnStatus("Horizontal"), noteOffStatus("Horizontal")
+	pianoVert.OnNoteOn, pianoVert.OnNoteOff = noteOnStatus("Vertical"), noteOffStatus("Vertical")
 
 	startTime := time.Now()
 	app.SetIdleCallback(func() {
@@ -295,6 +434,14 @@ func main() {
 	}
 	tabs.AddTab("Mixer", tMixer)
 	for _, w := range tMixer {
+		win.AddWidget(w)
+	}
+	tabs.AddTab("Piano", tPiano)
+	for _, w := range tPiano {
+		win.AddWidget(w)
+	}
+	tabs.AddTab("Image", tImage)
+	for _, w := range tImage {
 		win.AddWidget(w)
 	}
 

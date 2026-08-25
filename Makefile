@@ -1,9 +1,10 @@
 MODULE  := github.com/yeoblyv/graphite
 DIST    := dist
-PROGRAMS := demo:./demo showcase:./showcase
+PROGRAMS := gphedit:./gphedit showcase:./showcase promo:./promo
 
 .PHONY: build build-all \
-	build-windows-amd64 build-windows-386 build-linux-amd64 build-linux-386 build-target \
+	build-windows-amd64 build-windows-386 build-linux-amd64 build-linux-386 \
+	build-darwin-amd64 build-darwin-arm64 build-target \
 	test vet fmt lint tidy clean
 
 ## build: compile every package for the host GOOS/GOARCH (no cross-compile).
@@ -11,7 +12,7 @@ build:
 	go build ./...
 
 ## build-all: cross-compile every program in PROGRAMS for every supported target.
-build-all: build-windows-amd64 build-windows-386 build-linux-amd64 build-linux-386
+build-all: build-windows-amd64 build-windows-386 build-linux-amd64 build-linux-386 build-darwin-amd64 build-darwin-arm64
 
 build-windows-amd64:
 	@$(MAKE) --no-print-directory build-target GOOS=windows GOARCH=amd64 EXT=.exe
@@ -24,6 +25,12 @@ build-linux-amd64:
 
 build-linux-386:
 	@$(MAKE) --no-print-directory build-target GOOS=linux GOARCH=386 EXT=
+
+build-darwin-amd64:
+	@$(MAKE) --no-print-directory build-target GOOS=darwin GOARCH=amd64 EXT=
+
+build-darwin-arm64:
+	@$(MAKE) --no-print-directory build-target GOOS=darwin GOARCH=arm64 EXT=
 
 # build-target is the shared cross-compile step every build-<os>-<arch>
 # target delegates to; GOOS/GOARCH/EXT are supplied by the caller above.

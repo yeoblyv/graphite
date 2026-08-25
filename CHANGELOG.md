@@ -28,6 +28,14 @@ Baseline for the first public release.
   via `SetLevel`, latching clip indicator, Mute/Solo, colored label,
   double-click-to-edit via `ShowFaderValueEditor`) built on top of the new
   mouse capture.
+- `PianoRoll`, a playable piano keyboard (horizontal or vertical, an
+  adaptive key count with a configurable floor, mouse click/drag,
+  PC-keyboard input, and a `NoteOn`/`NoteOff` API for driving it
+  programmatically), plus two optional companion modules —
+  `graphite/audio` (real sine-wave synthesis and playback via `oto`) and
+  `graphite/midi` (real MIDI input devices via `gomidi`/`rtmidi`) — kept
+  as separate Go modules so their dependencies (and, for `graphite/midi`,
+  its cgo requirement) aren't imposed on consumers who don't need them.
 - `FuzzParseANSI`, `FuzzTextAreaBuildLines`, `FuzzSanitizeGlyph` fuzz the
   three hand-rolled parsers.
 

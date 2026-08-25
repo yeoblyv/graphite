@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/term"
 )
@@ -23,6 +24,7 @@ type terminal struct {
 	oldState      *term.State
 	input         chan []byte
 	readerRunning bool
+	eventQueue    []Event
 }
 
 // newTerminal creates a terminal with its input channel ready to receive.
@@ -37,6 +39,7 @@ func newTerminal() *terminal {
 // It starts the background input reader on first call and is safe to call
 // again after restore (e.g. across a Suspend/Resume cycle).
 func (t *terminal) init() {
+	enableVirtualTerminal()
 	fmt.Print("\033[?1049h\033[?25l\033[?1002h\033[?1015h\033[?1006h")
 
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -78,9 +81,20 @@ func (t *terminal) restore() {
 // nothing arrives within the timeout so the render loop keeps ticking (and
 // can service idle callbacks, animations, etc.) even without input.
 func (t *terminal) pollEvent() Event {
+	if len(t.eventQueue) > 0 {
+		ev := t.eventQueue[0]
+		t.eventQueue = t.eventQueue[1:]
+		return ev
+	}
 	select {
 	case buf := <-t.input:
-		return parseANSI(buf)
+		evs := parseANSI(buf)
+		if len(evs) > 0 {
+			ev := evs[0]
+			t.eventQueue = append(t.eventQueue, evs[1:]...)
+			return ev
+		}
+		return Event{Type: EventNone}
 	case <-time.After(10 * time.Millisecond):
 		return Event{Type: EventNone}
 	}
@@ -97,90 +111,119 @@ func GetTerminalSize() (int, int) {
 	return w, h
 }
 
-// parseANSI decodes one raw read from stdin into a single Graphite Event.
+// parseANSI decodes raw reads from stdin into a slice of Graphite Events.
 // It recognizes plain ASCII keys, common ANSI escape sequences (arrows,
 // Delete), SGR mouse press/drag/release reports, and falls back to treating
-// any other multi-byte sequence as a single decoded UTF-8 rune.
-func parseANSI(buf []byte) Event {
+// any other multi-byte sequence as decoded UTF-8 runes.
+func parseANSI(buf []byte) []Event {
 	if len(buf) == 0 {
-		return Event{Type: EventNone}
+		return nil
 	}
 
-	if len(buf) == 1 {
-		b := buf[0]
-		switch b {
-		case 9:
-			return Event{Type: EventKey, Key: KeyTab}
-		case 13:
-			return Event{Type: EventKey, Key: KeyEnter}
-		case 27:
-			return Event{Type: EventKey, Key: KeyEscape}
-		case 32:
-			return Event{Type: EventKey, Key: KeySpace, CharCode: rune(b)}
-		case 127:
-			return Event{Type: EventKey, Key: KeyBackspace}
-		default:
-			if b >= 32 {
-				return Event{Type: EventKey, CharCode: rune(b)}
-			}
-		}
-	}
+	var events []Event
 
-	if len(buf) >= 3 && buf[0] == 27 && buf[1] == '[' {
-		if len(buf) == 3 {
-			switch buf[2] {
-			case 'A':
-				return Event{Type: EventKey, Key: KeyUp}
-			case 'B':
-				return Event{Type: EventKey, Key: KeyDown}
-			case 'C':
-				return Event{Type: EventKey, Key: KeyRight}
-			case 'D':
-				return Event{Type: EventKey, Key: KeyLeft}
-			}
-		}
-
-		if len(buf) >= 4 && buf[2] == '3' && buf[3] == '~' {
-			return Event{Type: EventKey, Key: KeyDelete}
-		}
-
-		// SGR mouse report: \033[<Btn;X;Y M (press/drag) or m (release).
-		if buf[2] == '<' {
-			seq := string(buf[3:])
-			isPress := strings.HasSuffix(seq, "M")
-			seq = strings.TrimRight(seq, "Mm")
-			parts := strings.Split(seq, ";")
-
-			if len(parts) == 3 {
-				btn, _ := strconv.Atoi(parts[0])
-				x, _ := strconv.Atoi(parts[1])
-				y, _ := strconv.Atoi(parts[2])
-				mx, my := x-1, y-1 // Convert from 1-based to 0-based.
-
-				if !isPress {
-					// A release ends whatever widget captured the mouse on
-					// the preceding press, regardless of which button — see
-					// Window's mouse capture.
-					return Event{Type: EventMouseUp, MouseX: mx, MouseY: my}
+	for len(buf) > 0 {
+		if buf[0] == 27 {
+			if len(buf) >= 3 && buf[1] == '[' {
+				matched := false
+				if buf[2] == 'A' {
+					events = append(events, Event{Type: EventKey, Key: KeyUp})
+					buf = buf[3:]
+					matched = true
 				}
-				// SGR reports the left button as 0 for a fresh press, or 32
-				// (button bit unchanged, motion bit set) while dragging.
-				switch btn {
-				case 0:
-					return Event{Type: EventMouseDown, MouseX: mx, MouseY: my}
-				case 32:
-					return Event{Type: EventMouseDrag, MouseX: mx, MouseY: my}
+				if !matched && buf[2] == 'B' {
+					events = append(events, Event{Type: EventKey, Key: KeyDown})
+					buf = buf[3:]
+					matched = true
+				}
+				if !matched && buf[2] == 'C' {
+					events = append(events, Event{Type: EventKey, Key: KeyRight})
+					buf = buf[3:]
+					matched = true
+				}
+				if !matched && buf[2] == 'D' {
+					events = append(events, Event{Type: EventKey, Key: KeyLeft})
+					buf = buf[3:]
+					matched = true
+				}
+
+				if matched {
+					continue
+				}
+
+				if len(buf) >= 4 && buf[2] == '3' && buf[3] == '~' {
+					events = append(events, Event{Type: EventKey, Key: KeyDelete})
+					buf = buf[4:]
+					continue
+				}
+
+				if buf[2] == '<' {
+					endIdx := 3
+					for endIdx < len(buf) && buf[endIdx] != 'M' && buf[endIdx] != 'm' {
+						endIdx++
+					}
+					if endIdx < len(buf) {
+						seq := string(buf[3:endIdx])
+						isPress := buf[endIdx] == 'M'
+						parts := strings.Split(seq, ";")
+
+						if len(parts) == 3 {
+							btn, _ := strconv.Atoi(parts[0])
+							x, _ := strconv.Atoi(parts[1])
+							y, _ := strconv.Atoi(parts[2])
+							mx, my := x-1, y-1
+
+							if !isPress {
+								events = append(events, Event{Type: EventMouseUp, MouseX: mx, MouseY: my})
+							} else {
+								switch btn {
+								case 0:
+									events = append(events, Event{Type: EventMouseDown, MouseX: mx, MouseY: my})
+								case 32:
+									events = append(events, Event{Type: EventMouseDrag, MouseX: mx, MouseY: my})
+								case 64:
+									events = append(events, Event{Type: EventMouseScrollUp, MouseX: mx, MouseY: my})
+								case 65:
+									events = append(events, Event{Type: EventMouseScrollDown, MouseX: mx, MouseY: my})
+								}
+							}
+						}
+						buf = buf[endIdx+1:]
+						continue
+					}
 				}
 			}
+
+			events = append(events, Event{Type: EventKey, Key: KeyEscape})
+			buf = buf[1:]
+		} else {
+			b := buf[0]
+			switch b {
+			case 3:
+				events = append(events, Event{Type: EventKey, Key: KeyCtrlC})
+			case 9:
+				events = append(events, Event{Type: EventKey, Key: KeyTab})
+			case 13:
+				events = append(events, Event{Type: EventKey, Key: KeyEnter})
+			case 22:
+				events = append(events, Event{Type: EventKey, Key: KeyCtrlV})
+			case 24:
+				events = append(events, Event{Type: EventKey, Key: KeyCtrlX})
+			case 32:
+				events = append(events, Event{Type: EventKey, Key: KeySpace, CharCode: rune(b)})
+			case 127:
+				events = append(events, Event{Type: EventKey, Key: KeyBackspace})
+			default:
+				if b >= 32 {
+					r, size := utf8.DecodeRune(buf)
+					events = append(events, Event{Type: EventKey, CharCode: r})
+					buf = buf[size:]
+					continue
+				}
+			}
+			buf = buf[1:]
 		}
 	}
 
-	if len(buf) > 1 && buf[0] != 27 {
-		runes := []rune(string(buf))
-		if len(runes) > 0 {
-			return Event{Type: EventKey, CharCode: runes[0]}
-		}
-	}
-
-	return Event{Type: EventNone}
+	return events
 }

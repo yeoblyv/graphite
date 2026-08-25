@@ -1,6 +1,7 @@
 package Graphite
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -44,13 +45,55 @@ func (app *Application) SetTheme(t Theme) {
 	app.canvas.forceRedraw = true
 }
 
+func measureTextWrapped(text string, maxW int) int {
+	lines := 0
+	for _, hardLine := range strings.Split(text, "\n") {
+		words := strings.Fields(hardLine)
+		if len(words) == 0 {
+			lines++
+			continue
+		}
+		lineW := 0
+		for _, word := range words {
+			wordW := 0
+			for _, r := range word {
+				wordW += runeWidth(r)
+			}
+			if lineW+wordW > maxW {
+				if lineW > 0 {
+					lines++
+					lineW = 0
+				}
+			} else if lineW > 0 {
+				lineW++
+			}
+			for _, r := range word {
+				rw := runeWidth(r)
+				if lineW+rw > maxW {
+					lines++
+					lineW = 0
+				}
+				lineW += rw
+			}
+		}
+		lines++
+	}
+	return lines
+}
+
 // ShowMessage opens a modal dialog with a title, a message, and a single OK
 // button styled per style. It is layered on SetModal, so it stacks on top
 // of any modal already open rather than replacing it.
 func (app *Application) ShowMessage(title, message string, style ButtonStyle) {
-	mod := NewWindow(50, 8, " "+title+" ")
+	lines := measureTextWrapped(message, 42)
+	winH := lines + 6
+	if winH < 8 {
+		winH = 8
+	}
+
+	mod := NewWindow(50, winH, " "+title+" ")
 	mod.AddWidget(NewLabel(4, 2, message))
-	btn := NewButton(20, 5, "OK", style, func() {
+	btn := NewButton(20, winH-3, "OK", style, func() {
 		app.CloseModal()
 	})
 	mod.AddWidget(btn)
@@ -65,6 +108,12 @@ func (app *Application) SetWindow(win *Window) {
 // SetModal opens mod on top of the current modal stack, leaving any
 // already-open modal in place beneath it.
 func (app *Application) SetModal(mod *Window) {
+	if app.activeWindow != nil {
+		app.activeWindow.ClearMouseCapture()
+	}
+	for _, m := range app.modalStack {
+		m.ClearMouseCapture()
+	}
 	app.modalStack = append(app.modalStack, mod)
 }
 
@@ -72,6 +121,7 @@ func (app *Application) SetModal(mod *Window) {
 // or the active window.
 func (app *Application) CloseModal() {
 	if len(app.modalStack) > 0 {
+		app.modalStack[len(app.modalStack)-1].ClearMouseCapture()
 		app.modalStack = app.modalStack[:len(app.modalStack)-1]
 	}
 }

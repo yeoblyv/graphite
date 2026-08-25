@@ -25,6 +25,9 @@ const (
 	KeyLeft      KeyCode = 1003
 	KeyRight     KeyCode = 1004
 	KeyDelete    KeyCode = 1005
+	KeyCtrlC     KeyCode = 1006
+	KeyCtrlV     KeyCode = 1007
+	KeyCtrlX     KeyCode = 1008
 )
 
 // EventType discriminates the kind of input an Event carries.
@@ -40,8 +43,9 @@ const (
 	// (see Window's mouse capture), regardless of where the pointer moves.
 	EventMouseDrag
 	// EventMouseUp is a button release. Like EventMouseDrag, it goes to the
-	// widget that captured the preceding EventMouseDown, and ends capture.
 	EventMouseUp
+	EventMouseScrollUp
+	EventMouseScrollDown
 )
 
 // Event is a single input notification delivered to the focused widget (for
@@ -275,6 +279,113 @@ func (c *Canvas) DrawText(x, y int, text string, bg, fg Color) {
 	}
 }
 
+// DrawTextBounded writes text like DrawText, but truncates it and appends "…"
+// if it would exceed maxW columns.
+func (c *Canvas) DrawTextBounded(x, y, maxW int, text string, bg, fg Color) {
+	if maxW <= 0 {
+		return
+	}
+
+	// Fast path: if it fits entirely, just draw it.
+	totalW := 0
+	for _, r := range text {
+		totalW += runeWidth(r)
+	}
+	if totalW <= maxW {
+		c.DrawText(x, y, text, bg, fg)
+		return
+	}
+
+	// Truncate and add "…"
+	cursor := x
+	drawnW := 0
+	for _, r := range text {
+		w := runeWidth(r)
+		if drawnW+w > maxW-1 { // Leave room for "…" (width 1)
+			break
+		}
+		c.DrawCell(cursor, y, string(r), bg, fg)
+		if w >= 2 {
+			c.drawContinuation(cursor+1, y, bg, fg)
+		}
+		cursor += w
+		drawnW += w
+	}
+	c.DrawCell(cursor, y, "…", bg, fg)
+}
+
+// DrawTextWrapped writes text, wrapping on whitespace if it exceeds maxW columns.
+// Returns the number of lines drawn.
+func (c *Canvas) DrawTextWrapped(x, y, maxW int, text string, bg, fg Color) int {
+	if maxW <= 0 {
+		return 0
+	}
+
+	lines := 0
+	hardLines := strings.Split(text, "\n")
+
+	cursorY := y
+	hasDrawnAny := false
+
+	for hIdx, hardLine := range hardLines {
+		if hIdx > 0 {
+			cursorY++
+			lines++
+		}
+
+		words := strings.Fields(hardLine)
+		if len(words) == 0 {
+			continue
+		}
+		hasDrawnAny = true
+
+		cursorX := x
+		lineW := 0
+
+		for _, word := range words {
+			wordW := 0
+			for _, r := range word {
+				wordW += runeWidth(r)
+			}
+
+			if lineW+wordW > maxW {
+				if lineW > 0 {
+					cursorY++
+					lines++
+					cursorX = x
+					lineW = 0
+				}
+			} else if lineW > 0 {
+				c.DrawCell(cursorX, cursorY, " ", bg, fg)
+				cursorX++
+				lineW++
+			}
+
+			for _, r := range word {
+				rw := runeWidth(r)
+				if lineW+rw > maxW {
+					cursorY++
+					lines++
+					cursorX = x
+					lineW = 0
+				}
+				c.DrawCell(cursorX, cursorY, string(r), bg, fg)
+				if rw >= 2 {
+					c.drawContinuation(cursorX+1, cursorY, bg, fg)
+				}
+				cursorX += rw
+				lineW += rw
+			}
+		}
+	}
+
+	if !hasDrawnAny && len(hardLines) <= 1 {
+		return 0
+	}
+
+	return lines + 1
+}
+
 // Render diffs the back buffer against what was last drawn to the terminal
 // and writes only the changed cells, minimizing the bytes sent per frame.
 // A resize or the first frame forces every cell to be rewritten.
@@ -421,6 +532,23 @@ func (b *BaseWidget) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		b.LastH = (pH * b.PctH) / 100
 	} else if b.Height <= 0 {
 		b.LastH = pH - (b.AbsY - offY) + b.Height
+	}
+
+	// Clamp to parent bounds so widgets don't bleed out
+	maxW := pW - (b.AbsX - offX)
+	if maxW < 0 {
+		maxW = 0
+	}
+	if b.LastW > maxW {
+		b.LastW = maxW
+	}
+
+	maxH := pH - (b.AbsY - offY)
+	if maxH < 0 {
+		maxH = 0
+	}
+	if b.LastH > maxH {
+		b.LastH = maxH
 	}
 }
 

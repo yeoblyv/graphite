@@ -40,8 +40,14 @@ func TestParseANSI(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := parseANSI(tc.in)
-			if got != tc.want {
-				t.Errorf("parseANSI(%v) = %+v, want %+v", tc.in, got, tc.want)
+			if len(got) == 0 {
+				if tc.want.Type != EventNone {
+					t.Errorf("parseANSI(%v) = [], want %+v", tc.in, tc.want)
+				}
+			} else {
+				if got[0] != tc.want {
+					t.Errorf("parseANSI(%v) = %+v, want %+v", tc.in, got[0], tc.want)
+				}
 			}
 		})
 	}
@@ -52,7 +58,7 @@ func TestParseANSI_MouseReleaseIgnoresButtonNumber(t *testing.T) {
 	// (see Window.mouseCapture), so any btn value with an "m" suffix must
 	// decode to EventMouseUp, not just btn=0.
 	got := parseANSI([]byte("\033[<2;10;5m"))
-	if got.Type != EventMouseUp {
+	if len(got) == 0 || got[0].Type != EventMouseUp {
 		t.Errorf("parseANSI(btn=2 release) = %+v, want Type=EventMouseUp", got)
 	}
 }
@@ -60,7 +66,7 @@ func TestParseANSI_MouseReleaseIgnoresButtonNumber(t *testing.T) {
 func TestParseANSI_MultiByteUnicode(t *testing.T) {
 	// 'ю' encoded as UTF-8 (2 bytes), no leading ESC.
 	got := parseANSI([]byte("ю"))
-	if got.Type != EventKey || got.CharCode != 'ю' {
+	if len(got) == 0 || got[0].Type != EventKey || got[0].CharCode != 'ю' {
 		t.Errorf("expected charcode 'ю', got %+v", got)
 	}
 }

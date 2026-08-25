@@ -19,6 +19,13 @@ type Window struct {
 	mouseCapture Widget
 }
 
+// ClearMouseCapture forcefully releases any active mouse capture in this
+// window, preventing mouse up/drag events from being routed to the widget
+// that triggered a modal open.
+func (w *Window) ClearMouseCapture() {
+	w.mouseCapture = nil
+}
+
 // NewWindow creates a Window with a fixed size and title, and default
 // padding around its content area.
 func NewWindow(w, h int, title string) *Window {
@@ -118,6 +125,27 @@ func (w *Window) HandleEvent(ev Event) {
 				target.SetFocus(true)
 			}
 			w.mouseCapture = target
+			target.HandleEvent(ev)
+		}
+		return
+	}
+
+	if ev.Type == EventMouseScrollUp || ev.Type == EventMouseScrollDown {
+		var target Widget
+		var walk func(widgets []Widget)
+		walk = func(widgets []Widget) {
+			for _, child := range widgets {
+				if child.IsVisible() && child.HitTest(ev.MouseX, ev.MouseY) {
+					target = child
+					if len(child.GetChildren()) > 0 {
+						walk(child.GetChildren())
+					}
+				}
+			}
+		}
+		walk(w.Children)
+
+		if target != nil && target.IsEnabled() {
 			target.HandleEvent(ev)
 		}
 		return
