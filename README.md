@@ -1,5 +1,7 @@
 # Graphite
 
+![Graphite TUI banner](docs/images/banner.png)
+
 ![go version](https://img.shields.io/badge/go-%3E%3D1.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
