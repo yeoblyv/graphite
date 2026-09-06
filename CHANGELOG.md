@@ -88,6 +88,13 @@ Baseline for the first public release.
 
 ### Fixed
 
+- `ListBox`'s selected-row text stayed the fixed `theme.FgWindow` regardless
+  of the row's highlight color (`theme.Primary`), so a theme whose `Primary`
+  and `FgWindow` are both light — a bright accent color on a light-text
+  theme — rendered the selection as unreadable light-on-light. The
+  foreground is now computed from the highlight via `Color.ContrastText`,
+  the same auto-contrast `Button`/`MenuStrip` already use for their own
+  custom colors.
 - `ShowValueEditor`/`ShowConfirm`/`ShowTextEditor`'s OK/Yes/Cancel/No
   buttons were unclickable by mouse: each dialog positioned its button row
   using the modal's own requested height, without accounting for

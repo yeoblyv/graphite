@@ -345,7 +345,7 @@ func (lb *ListBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		isSelected := (idx == lb.Selected)
 		ibg, iffg, prefix := bg, c.theme.FgWindow, "  "
 		if isSelected {
-			ibg, prefix = c.theme.Primary, "► "
+			ibg, iffg, prefix = c.theme.Primary, c.theme.Primary.ContrastText(), "► "
 		}
 
 		for ix := 0; ix < lb.LastW-1; ix++ {

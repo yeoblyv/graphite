@@ -371,6 +371,31 @@ func TestListBox_StaleSelectedAfterShrinkDoesNotPanic(t *testing.T) {
 	lb.HandleEvent(Event{Type: EventKey, Key: KeyEnter})
 }
 
+// TestListBox_SelectedRowTextIsReadableAgainstItsHighlight guards against a
+// real regression: the selected row's background switches to theme.Primary
+// (a bright, saturated accent in some themes, e.g. Diskette's lime), but its
+// foreground stayed the fixed theme.FgWindow regardless — light-on-light
+// text a caller with a light Primary and light FgWindow can't read at all.
+func TestListBox_SelectedRowTextIsReadableAgainstItsHighlight(t *testing.T) {
+	lb := NewListBox(0, 0, 20, 3, []string{"alpha", "beta"}, nil)
+	lb.Selected = 0
+
+	theme := DefaultTheme()
+	theme.Primary = RGB(255, 255, 255) // a bright Primary a fixed light FgWindow can't contrast against
+	theme.FgWindow = RGB(240, 240, 240)
+
+	c := NewCanvas()
+	c.Resize(20, 3)
+	c.theme = theme
+	lb.DrawRelative(c, 0, 0, 20, 3)
+
+	got := c.buffer[0].FgColor
+	want := theme.Primary.ContrastText()
+	if got != want {
+		t.Errorf("selected row foreground = %v, want %v (contrast-computed against the highlight)", got, want)
+	}
+}
+
 func TestTodoList_StaleSelectedAfterShrinkDoesNotPanic(t *testing.T) {
 	tl := NewTodoList(0, 0, 20, 5, []string{"a", "b", "c", "d", "e"}, false)
 	tl.Selected = 4
