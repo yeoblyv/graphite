@@ -260,3 +260,42 @@ func TestFader_EndToEndDragFromRawSGRBytes(t *testing.T) {
 		t.Errorf("a drag event after release moved Value to %v, want it to stay 0 (capture not cleared)", f.Value)
 	}
 }
+
+// Regression: ShowValueEditor placed its OK/Cancel row at a fixed y=7
+// inside a modal only 9 rows tall. Window's default PaddingY (2) shrinks
+// both the top and bottom of that to get the content area a child's Y is
+// resolved against, so row 7 landed past the actual content bounds and
+// BaseWidget.DrawRelative's parent-bounds clamp capped the buttons'
+// LastH at 0 — Enter still triggered them (keyboard routing goes by
+// focus, not HitTest), but a mouse click never could reach them.
+func TestShowValueEditor_OKButtonIsActuallyClickable(t *testing.T) {
+	app := NewApplication()
+	var got float64
+	called := false
+
+	ShowValueEditor(app, "Volume", 50, 0, 100, func(v float64) { got = v; called = true })
+	mod := app.topModal()
+
+	c := NewCanvas()
+	c.Resize(213, 54)
+	mod.Draw(c)
+
+	var okBtn *Button
+	for _, w := range mod.Children {
+		if b, ok := w.(*Button); ok && b.Text == "OK" {
+			okBtn = b
+		}
+	}
+	if okBtn == nil {
+		t.Fatal("ShowValueEditor did not add an \"OK\" button")
+	}
+	if okBtn.LastW <= 0 || okBtn.LastH <= 0 {
+		t.Fatalf("OK button resolved to LastW=%d LastH=%d — HitTest can never match it, so a mouse click can never reach it", okBtn.LastW, okBtn.LastH)
+	}
+
+	mod.HandleEvent(Event{Type: EventMouseDown, MouseX: okBtn.AbsX + 1, MouseY: okBtn.AbsY})
+
+	if !called || got != 50 {
+		t.Errorf("clicking OK by mouse: called=%v got=%v, want called=true got=50", called, got)
+	}
+}

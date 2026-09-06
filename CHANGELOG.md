@@ -70,6 +70,16 @@ Baseline for the first public release.
 
 ### Fixed
 
+- `ShowValueEditor`/`ShowConfirm`/`ShowTextEditor`'s OK/Yes/Cancel/No
+  buttons were unclickable by mouse: each dialog positioned its button row
+  using the modal's own requested height, without accounting for
+  `PaddingY` shrinking the content area a child's Y actually resolves
+  against. `BaseWidget.DrawRelative`'s parent-bounds clamp then capped
+  each button's resolved height at 0 — still focusable and
+  Enter-submittable (keyboard routing goes by focus, not `HitTest`), but
+  `HitTest` requires a positive height, so no click could ever land. Fixed
+  by anchoring the button row to the bottom of the content area instead of
+  computing its position from the window's own height.
 - Terminal escape-sequence injection: `Canvas.DrawCell` now strips control
   characters (e.g. a raw ESC arriving via untrusted subprocess output
   streamed into a `TextArea`) before they reach the real terminal.

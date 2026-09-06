@@ -430,7 +430,14 @@ func (f *Fader) isDoubleClick(ev Event) bool {
 // closes and onConfirm is called; otherwise, an error modal stacks on top
 // of it.
 func ShowValueEditor(app *Application, title string, current, min, max float64, onConfirm func(float64)) {
-	mod := NewWindow(44, 9, " "+title+" ")
+	// Height 12, not the label/input/error rows' own tallest position (7)
+	// plus 1: Window's default PaddingY (2) is subtracted from both the
+	// top and bottom of FixedH to get the content area a child's Y is
+	// resolved against, so anything shorter than 12 here clips content
+	// laid out down to row 7 — BaseWidget.DrawRelative's parent-bounds
+	// clamp then caps the button's LastH at 0, making it focusable and
+	// Enter-submittable but never clickable (HitTest requires LastH > 0).
+	mod := NewWindow(44, 12, " "+title+" ")
 	mod.AddWidget(NewLabel(2, 1, fmt.Sprintf("Value (%g-%g):", min, max)))
 
 	input := NewInputBox(2, 3, 30, "")
