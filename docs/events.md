@@ -70,6 +70,18 @@ const (
 	KeyCtrlC     KeyCode = 1006
 	KeyCtrlV     KeyCode = 1007
 	KeyCtrlX     KeyCode = 1008
+	KeyF1        KeyCode = 1009
+	KeyF2        KeyCode = 1010
+	KeyF3        KeyCode = 1011
+	KeyF4        KeyCode = 1012
+	KeyF5        KeyCode = 1013
+	KeyF6        KeyCode = 1014
+	KeyF7        KeyCode = 1015
+	KeyF8        KeyCode = 1016
+	KeyF9        KeyCode = 1017
+	KeyF10       KeyCode = 1018
+	KeyF11       KeyCode = 1019
+	KeyF12       KeyCode = 1020
 )
 ```
 
@@ -80,6 +92,15 @@ wired specifically for clipboard operations in `InputBox` and `TextArea`
 (via `github.com/atotto/clipboard`) — `Ctrl+C` copies the field's full
 value, `Ctrl+X` cuts it, `Ctrl+V` pastes at the cursor, stripping
 newlines for `InputBox` since it's single-line.
+
+`F1`-`F12` are decoded from both encodings terminals actually send: the
+SS3 form (`ESC O P`...`ESC O S`, xterm's encoding for `F1`-`F4`) and the
+CSI-tilde form (`ESC [` + digits + `~`, used for `F5`-`F12` everywhere and
+as an alternate encoding for `F1`-`F4` on some terminals). Neither
+`Window` nor `Application` reserves any of them — see
+[architecture.md](architecture.md) for `Tab`/`Escape`, the only two keys
+that are — so a program is free to wire all twelve to its own commands,
+e.g. a Total-Commander-style `F5` Copy/`F6` Move/`F8` Delete bar.
 
 ## Two keys `Window`/`Application` reserve
 

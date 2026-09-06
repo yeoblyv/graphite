@@ -28,6 +28,18 @@ const (
 	KeyCtrlC     KeyCode = 1006
 	KeyCtrlV     KeyCode = 1007
 	KeyCtrlX     KeyCode = 1008
+	KeyF1        KeyCode = 1009
+	KeyF2        KeyCode = 1010
+	KeyF3        KeyCode = 1011
+	KeyF4        KeyCode = 1012
+	KeyF5        KeyCode = 1013
+	KeyF6        KeyCode = 1014
+	KeyF7        KeyCode = 1015
+	KeyF8        KeyCode = 1016
+	KeyF9        KeyCode = 1017
+	KeyF10       KeyCode = 1018
+	KeyF11       KeyCode = 1019
+	KeyF12       KeyCode = 1020
 )
 
 // EventType discriminates the kind of input an Event carries.

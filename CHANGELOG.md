@@ -10,6 +10,12 @@ Baseline for the first public release.
 
 ### Added
 
+- `KeyF1`-`KeyF12`, decoded from both the SS3 (`F1`-`F4`) and CSI-tilde
+  (`F5`-`F12`, and an alternate `F1`-`F4` encoding) escape sequences
+  terminals send for function keys. Previously an `F`-key's escape
+  sequence was misread as a lone `Escape` keypress (closing a modal or
+  quitting the application) followed by its remaining bytes leaking
+  through as ordinary characters.
 - `ShowConfirm`, a Yes/No confirmation modal, and `ShowTextEditor`,
   `ShowValueEditor`'s free-form-text counterpart for prompting a single
   line of arbitrary text (e.g. naming a file or directory) instead of a

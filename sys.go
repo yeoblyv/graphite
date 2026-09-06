@@ -111,10 +111,44 @@ func GetTerminalSize() (int, int) {
 	return w, h
 }
 
+// ss3Key maps the third byte of an SS3 escape sequence ("\x1bO" + letter) to
+// the key it represents. xterm and its descendants (macOS Terminal.app,
+// iTerm2, most Linux emulators) send F1-F4 this way.
+var ss3Key = map[byte]KeyCode{
+	'P': KeyF1,
+	'Q': KeyF2,
+	'R': KeyF3,
+	'S': KeyF4,
+}
+
+// csiTildeKey maps the numeric parameter of a CSI-tilde escape sequence
+// ("\x1b[" + digits + "~") to the key it represents. This is the portable
+// encoding for Delete and for F5-F12 (and an alternate encoding some
+// terminals also use for F1-F4) across every terminal Graphite targets,
+// including Windows Terminal and conhost.exe once virtual-terminal input
+// processing is enabled (see docs/windows-terminal.md). 16 and 22 have no
+// assigned key by long-standing VT220 convention and are intentionally
+// absent.
+var csiTildeKey = map[int]KeyCode{
+	3:  KeyDelete,
+	11: KeyF1,
+	12: KeyF2,
+	13: KeyF3,
+	14: KeyF4,
+	15: KeyF5,
+	17: KeyF6,
+	18: KeyF7,
+	19: KeyF8,
+	20: KeyF9,
+	21: KeyF10,
+	23: KeyF11,
+	24: KeyF12,
+}
+
 // parseANSI decodes raw reads from stdin into a slice of Graphite Events.
 // It recognizes plain ASCII keys, common ANSI escape sequences (arrows,
-// Delete), SGR mouse press/drag/release reports, and falls back to treating
-// any other multi-byte sequence as decoded UTF-8 runes.
+// Delete, F1-F12), SGR mouse press/drag/release reports, and falls back to
+// treating any other multi-byte sequence as decoded UTF-8 runes.
 func parseANSI(buf []byte) []Event {
 	if len(buf) == 0 {
 		return nil
@@ -124,6 +158,14 @@ func parseANSI(buf []byte) []Event {
 
 	for len(buf) > 0 {
 		if buf[0] == 27 {
+			if len(buf) >= 3 && buf[1] == 'O' {
+				if key, ok := ss3Key[buf[2]]; ok {
+					events = append(events, Event{Type: EventKey, Key: key})
+					buf = buf[3:]
+					continue
+				}
+			}
+
 			if len(buf) >= 3 && buf[1] == '[' {
 				matched := false
 				if buf[2] == 'A' {
@@ -151,10 +193,18 @@ func parseANSI(buf []byte) []Event {
 					continue
 				}
 
-				if len(buf) >= 4 && buf[2] == '3' && buf[3] == '~' {
-					events = append(events, Event{Type: EventKey, Key: KeyDelete})
-					buf = buf[4:]
-					continue
+				if j := 2; j < len(buf) && buf[j] >= '0' && buf[j] <= '9' {
+					for j < len(buf) && buf[j] >= '0' && buf[j] <= '9' {
+						j++
+					}
+					if j < len(buf) && buf[j] == '~' {
+						num, _ := strconv.Atoi(string(buf[2:j]))
+						if key, ok := csiTildeKey[num]; ok {
+							events = append(events, Event{Type: EventKey, Key: key})
+						}
+						buf = buf[j+1:]
+						continue
+					}
 				}
 
 				if buf[2] == '<' {

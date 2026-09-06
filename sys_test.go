@@ -19,6 +19,19 @@ func TestParseANSI(t *testing.T) {
 		{"arrow right", []byte{27, '[', 'C'}, Event{Type: EventKey, Key: KeyRight}},
 		{"arrow left", []byte{27, '[', 'D'}, Event{Type: EventKey, Key: KeyLeft}},
 		{"delete", []byte{27, '[', '3', '~'}, Event{Type: EventKey, Key: KeyDelete}},
+		{"f1 (SS3)", []byte{27, 'O', 'P'}, Event{Type: EventKey, Key: KeyF1}},
+		{"f2 (SS3)", []byte{27, 'O', 'Q'}, Event{Type: EventKey, Key: KeyF2}},
+		{"f3 (SS3)", []byte{27, 'O', 'R'}, Event{Type: EventKey, Key: KeyF3}},
+		{"f4 (SS3)", []byte{27, 'O', 'S'}, Event{Type: EventKey, Key: KeyF4}},
+		{"f1 (CSI-tilde)", []byte("\033[11~"), Event{Type: EventKey, Key: KeyF1}},
+		{"f5", []byte("\033[15~"), Event{Type: EventKey, Key: KeyF5}},
+		{"f6", []byte("\033[17~"), Event{Type: EventKey, Key: KeyF6}},
+		{"f7", []byte("\033[18~"), Event{Type: EventKey, Key: KeyF7}},
+		{"f8", []byte("\033[19~"), Event{Type: EventKey, Key: KeyF8}},
+		{"f9", []byte("\033[20~"), Event{Type: EventKey, Key: KeyF9}},
+		{"f10", []byte("\033[21~"), Event{Type: EventKey, Key: KeyF10}},
+		{"f11", []byte("\033[23~"), Event{Type: EventKey, Key: KeyF11}},
+		{"f12", []byte("\033[24~"), Event{Type: EventKey, Key: KeyF12}},
 		{
 			"sgr mouse down",
 			[]byte("\033[<0;10;5M"),
@@ -63,6 +76,16 @@ func TestParseANSI_MouseReleaseIgnoresButtonNumber(t *testing.T) {
 	}
 }
 
+func TestParseANSI_UnassignedCSITildeCodeProducesNoEvent(t *testing.T) {
+	// 16 and 22 are intentionally unmapped VT220 gaps; the whole escape
+	// sequence must still be consumed silently rather than leaking its
+	// digits/tilde through as literal typed characters.
+	got := parseANSI([]byte("\033[16~a"))
+	if len(got) != 1 || got[0].CharCode != 'a' {
+		t.Errorf("parseANSI(unassigned CSI-tilde + 'a') = %+v, want exactly one CharCode='a' event", got)
+	}
+}
+
 func TestParseANSI_MultiByteUnicode(t *testing.T) {
 	// 'ю' encoded as UTF-8 (2 bytes), no leading ESC.
 	got := parseANSI([]byte("ю"))
@@ -82,6 +105,10 @@ func FuzzParseANSI(f *testing.F) {
 	f.Add([]byte{127})
 	f.Add([]byte{27, '[', 'A'})
 	f.Add([]byte{27, '[', '3', '~'})
+	f.Add([]byte{27, 'O', 'P'})
+	f.Add([]byte("\033[21~"))
+	f.Add([]byte("\033[16~"))
+	f.Add([]byte{27, 'O'})
 	f.Add([]byte("\033[<0;10;5M"))
 	f.Add([]byte("\033[<32;10;5M"))
 	f.Add([]byte("\033[<0;10;5m"))
