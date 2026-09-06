@@ -166,6 +166,54 @@ func TestWindow_EnabledWidgetRespondsToMouseClick(t *testing.T) {
 	}
 }
 
+func TestButton_DefaultIdleColorIsThemeBgWidget(t *testing.T) {
+	btn := NewButton(0, 0, "OK", BtnDefault, nil)
+	c := NewCanvas()
+	c.Resize(20, 3)
+	btn.DrawRelative(c, 0, 0, 20, 3)
+
+	theme := DefaultTheme()
+	if got := c.buffer[0].BgColor; got != theme.BgWidget {
+		t.Errorf("idle Button background = %v, want theme.BgWidget (%v)", got, theme.BgWidget)
+	}
+}
+
+func TestButton_CustomBgColorAutoComputesContrastText(t *testing.T) {
+	btn := NewButton(0, 0, "OK", BtnDefault, nil)
+	btn.BgColor = Hex("#5DE4FF") // light cyan: contrast text should be black
+	c := NewCanvas()
+	c.Resize(20, 3)
+	btn.DrawRelative(c, 0, 0, 20, 3)
+
+	if got := c.buffer[0].BgColor; got != btn.BgColor {
+		t.Errorf("Button background = %v, want the custom BgColor (%v)", got, btn.BgColor)
+	}
+	if got, want := c.buffer[0].FgColor, RGB(0, 0, 0); got != want {
+		t.Errorf("Button foreground = %v, want auto-contrasted black (%v)", got, want)
+	}
+}
+
+func TestButton_CustomBgColorDoesNotAffectFocusedOrDisabledState(t *testing.T) {
+	btn := NewButton(0, 0, "OK", BtnDefault, nil)
+	btn.BgColor = Hex("#5DE4FF")
+	c := NewCanvas()
+	c.Resize(20, 3)
+	theme := DefaultTheme()
+
+	btn.IsFocused = true
+	btn.DrawRelative(c, 0, 0, 20, 3)
+	if got := c.buffer[0].BgColor; got != theme.BgFocused {
+		t.Errorf("focused Button background = %v, want theme.BgFocused (%v) — BgColor should not apply while focused", got, theme.BgFocused)
+	}
+
+	btn.IsFocused = false
+	btn.SetEnabled(false)
+	btn.DrawRelative(c, 0, 0, 20, 3)
+	if got := c.buffer[0].BgColor; got != theme.BgWidget {
+		t.Errorf("disabled Button background = %v, want theme.BgWidget (%v) — BgColor should not apply while disabled", got, theme.BgWidget)
+	}
+}
+
 func TestNewMenuStrip_DefaultsToThemeColors(t *testing.T) {
 	menu := NewMenuStrip(nil)
 	theme := DefaultTheme()

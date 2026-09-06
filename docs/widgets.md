@@ -135,6 +135,8 @@ type Button struct {
 	Text    string
 	Style   ButtonStyle
 	OnClick func()
+	BgColor Color // ColorNone (default): theme-driven, see below
+	FgColor Color // ColorNone (default): auto-contrast once BgColor is set, else theme.FgWindow
 }
 
 func NewButton(x, y int, text string, style ButtonStyle, onClick func()) *Button
@@ -146,11 +148,20 @@ func NewButton(x, y int, text string, style ButtonStyle, onClick func()) *Button
   `theme.BgFocused`) — an *unfocused* `BtnDanger` button is dimmed
   (`theme.Danger.Darken(0.3)`) so a destructive action still reads as
   "dangerous" even before it's focused; every other unfocused style uses
-  the plain `theme.BgWidget`.
+  the plain `theme.BgWidget`, unless `BgColor` is set (see below).
 - A disabled button (`SetEnabled(false)`) renders with `theme.BgWidget`/
   `theme.FgDisabled` and — enforced by `Window`, not by `Button` itself —
   never receives input regardless of what `HandleEvent` would do.
 - `Enter` or a mouse click both fire `OnClick`.
+- `BgColor`/`FgColor` override only the plain idle state (enabled,
+  unfocused, non-`BtnDanger`) — focused, disabled, and unfocused-danger
+  rendering are unchanged, so a button that must stay readable as
+  "dangerous" or "focused" always does. Set `BgColor` to give a button
+  its own accent even before it's focused — e.g. a toolbar button that
+  would otherwise blend into a plain list background —
+  `btn.BgColor = Graphite.Hex("#5DE4FF")`; leave `FgColor` at `ColorNone`
+  to auto-pick a contrasting text color (`Color.ContrastText`), or set it
+  explicitly for a specific one.
 
 ---
 

@@ -10,6 +10,14 @@ Baseline for the first public release.
 
 ### Added
 
+- `Button.BgColor`/`FgColor`, letting a button carry its own accent color
+  in its idle state instead of only being distinguishable once focused —
+  useful for a toolbar-style button that would otherwise blend into a
+  plain list background. `FgColor` left at `ColorNone` auto-picks a
+  contrasting text color via `Color.ContrastText`. Both default to
+  `ColorNone` (theme-driven, unchanged from before), and neither affects
+  focused, disabled, or unfocused-`BtnDanger` rendering, so no existing
+  `Button` is affected.
 - `Color.ContrastText()`, returning black or white for readable text on
   an arbitrary background — the exact computation `showcase`'s own
   `contrastText` helper already duplicated locally, promoted so a widget

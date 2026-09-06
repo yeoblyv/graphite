@@ -139,13 +139,25 @@ type Button struct {
 	Text    string
 	Style   ButtonStyle
 	OnClick func()
+	// BgColor/FgColor override the button's idle (enabled, unfocused,
+	// non-BtnDanger) colors; ColorNone (the default set by NewButton)
+	// uses theme.BgWidget/FgWindow instead, matching every Button's
+	// original appearance. Focused, disabled, and BtnDanger-while-
+	// unfocused rendering are unaffected — a caller wanting a button that
+	// reads as its own accent even when idle (e.g. a toolbar button that
+	// would otherwise blend into a plain list background) sets these
+	// instead of only being able to distinguish it once focused.
+	BgColor Color
+	FgColor Color
 }
 
-// NewButton creates a Button at (x, y) that calls onClick when activated.
+// NewButton creates a Button at (x, y) that calls onClick when activated,
+// with BgColor/FgColor left at their default (ColorNone, meaning "use the
+// theme").
 func NewButton(x, y int, text string, style ButtonStyle, onClick func()) *Button {
 	base := NewBaseWidget(x, y, len([]rune(text))+4, 1)
 	base.IsFocusable = true
-	return &Button{BaseWidget: base, Text: text, Style: style, OnClick: onClick}
+	return &Button{BaseWidget: base, Text: text, Style: style, OnClick: onClick, BgColor: ColorNone, FgColor: ColorNone}
 }
 
 // DrawRelative implements Widget.
@@ -171,9 +183,15 @@ func (b *Button) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	} else {
 		if b.Style == BtnDanger {
 			bg = c.theme.Danger.Darken(0.3)
+		} else if b.BgColor != ColorNone {
+			bg = b.BgColor
+			fg = b.BgColor.ContrastText()
 		} else {
 			bg = c.theme.BgWidget
 		}
+	}
+	if b.FgColor != ColorNone {
+		fg = b.FgColor
 	}
 	c.DrawTextBounded(b.AbsX, b.AbsY, b.LastW, "[ "+b.Text+" ]", bg, fg)
 }
