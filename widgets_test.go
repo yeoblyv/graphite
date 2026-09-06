@@ -118,6 +118,43 @@ func TestWindow_MouseCaptureFollowsDragOutsideWidgetBounds(t *testing.T) {
 	}
 }
 
+// EventMouseRightDown is hit-tested and delivered like a scroll event —
+// no focus change, no mouse capture — rather than being silently dropped
+// the way an undecoded SGR button used to be.
+func TestWindow_RightClickIsHitTestedWithoutMovingFocusOrCapture(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+
+	a := newEventSpy(0, 0, 5, 5)
+	a.IsFocusable = true
+	b := newEventSpy(10, 0, 5, 5)
+	b.IsFocusable = true
+	win.AddWidget(a)
+	win.AddWidget(b)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	win.HandleEvent(Event{Type: EventMouseRightDown, MouseX: b.AbsX, MouseY: b.AbsY})
+
+	if len(b.received) != 1 || b.received[0] != EventMouseRightDown {
+		t.Fatalf("B.received = %v, want [EventMouseRightDown]", b.received)
+	}
+	if len(a.received) != 0 {
+		t.Errorf("A should not have received anything, got %v", a.received)
+	}
+	if b.HasFocus() {
+		t.Error("a right-click should not move focus")
+	}
+
+	// A subsequent drag/release must not go to B: a right-click must not
+	// have started a mouse capture the way a left EventMouseDown does.
+	win.HandleEvent(Event{Type: EventMouseDrag, MouseX: b.AbsX, MouseY: b.AbsY})
+	if len(b.received) != 1 {
+		t.Errorf("B received a drag after a right-click, want no capture: %v", b.received)
+	}
+}
+
 // Regression: a disabled widget must not react to a mouse click. Before
 // Widget.IsEnabled() and the check in Window.HandleEvent were added, this
 // slipped through for every widget except Button.

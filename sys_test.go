@@ -39,6 +39,11 @@ func TestParseANSI(t *testing.T) {
 			Event{Type: EventMouseDown, MouseX: 9, MouseY: 4},
 		},
 		{
+			"sgr mouse right down",
+			[]byte("\033[<2;10;5M"),
+			Event{Type: EventMouseRightDown, MouseX: 9, MouseY: 4},
+		},
+		{
 			"sgr mouse drag",
 			[]byte("\033[<32;12;7M"),
 			Event{Type: EventMouseDrag, MouseX: 11, MouseY: 6},

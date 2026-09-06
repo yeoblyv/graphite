@@ -10,6 +10,12 @@ Baseline for the first public release.
 
 ### Added
 
+- `EventMouseRightDown`, decoded from the SGR mouse right-button press
+  report that was previously undecoded (silently dropped). It's
+  hit-tested and delivered like a scroll event — no focus change, no
+  mouse capture, since there's no corresponding drag/release to capture
+  for — letting a widget wire a secondary click-driven action (e.g. a
+  quick toggle) distinct from its primary `EventMouseDown` behavior.
 - `Button.BgColor`/`FgColor`, letting a button carry its own accent color
   in its idle state instead of only being distinguishable once focused —
   useful for a toolbar-style button that would otherwise blend into a

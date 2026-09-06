@@ -115,10 +115,13 @@ func (w *Window) AddWidget(widget Widget) {
 // HandleEvent routes a mouse or keyboard event to the appropriate widget:
 // a mouse press goes to the deepest widget hit-tested under the pointer and
 // captures the mouse, so the resulting drag/release events go straight to
-// that same widget regardless of where the pointer moves next; Tab advances
-// focus through the flattened focus order; all other key events go to
-// whichever widget currently has focus. Disabled widgets never receive an
-// event, regardless of what their own HandleEvent does.
+// that same widget regardless of where the pointer moves next; a scroll or
+// right-click event is hit-tested and delivered the same way but without
+// moving focus or starting a capture, since neither has a drag/release to
+// capture for; Tab advances focus through the flattened focus order; all
+// other key events go to whichever widget currently has focus. Disabled
+// widgets never receive an event, regardless of what their own HandleEvent
+// does.
 func (w *Window) HandleEvent(ev Event) {
 	if ev.Type == EventMouseDrag || ev.Type == EventMouseUp {
 		if w.mouseCapture != nil && w.mouseCapture.IsEnabled() {
@@ -161,7 +164,7 @@ func (w *Window) HandleEvent(ev Event) {
 		return
 	}
 
-	if ev.Type == EventMouseScrollUp || ev.Type == EventMouseScrollDown {
+	if ev.Type == EventMouseScrollUp || ev.Type == EventMouseScrollDown || ev.Type == EventMouseRightDown {
 		var target Widget
 		var walk func(widgets []Widget)
 		walk = func(widgets []Widget) {

@@ -59,6 +59,14 @@ const (
 	EventMouseUp
 	EventMouseScrollUp
 	EventMouseScrollDown
+	// EventMouseRightDown is a right-button press. Unlike EventMouseDown it
+	// doesn't move focus or start a mouse capture (there's no corresponding
+	// "right button held" drag or release to capture for) — it's simply
+	// hit-tested and delivered once, the same as a scroll event, for a
+	// widget that wants a secondary click-driven action (e.g. a
+	// context-menu trigger, or a quick toggle) distinct from its primary
+	// EventMouseDown behavior.
+	EventMouseRightDown
 )
 
 // Event is a single input notification delivered to the focused widget (for

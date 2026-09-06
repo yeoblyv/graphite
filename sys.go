@@ -230,6 +230,8 @@ func parseANSI(buf []byte) []Event {
 								switch btn {
 								case 0:
 									events = append(events, Event{Type: EventMouseDown, MouseX: mx, MouseY: my})
+								case 2:
+									events = append(events, Event{Type: EventMouseRightDown, MouseX: mx, MouseY: my})
 								case 32:
 									events = append(events, Event{Type: EventMouseDrag, MouseX: mx, MouseY: my})
 								case 64:

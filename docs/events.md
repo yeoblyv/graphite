@@ -37,6 +37,7 @@ const (
 	EventMouseUp
 	EventMouseScrollUp
 	EventMouseScrollDown
+	EventMouseRightDown
 )
 ```
 
@@ -51,6 +52,12 @@ a widget's `HandleEvent`.
 regardless of where the pointer has moved to since, including outside
 that widget's own bounds. `EventMouseUp` (button release) behaves the
 same way, and additionally clears the capture.
+
+`EventMouseRightDown` is a right-button press. It's hit-tested and
+delivered the same way as a scroll event — once, to whatever's under the
+pointer — but unlike `EventMouseDown` it never moves focus or starts a
+mouse capture, since a right click has no corresponding drag/release to
+capture for.
 
 ## `KeyCode`
 
@@ -131,6 +138,7 @@ every pixel the cursor crosses idly. `parseANSI` decodes the resulting
 |---|---|
 | `0`, final byte `M` | `EventMouseDown` |
 | `0`, final byte `m` | `EventMouseUp` |
+| `2`, final byte `M` | `EventMouseRightDown` |
 | `32` | `EventMouseDrag` |
 | `64` | `EventMouseScrollUp` |
 | `65` | `EventMouseScrollDown` |
