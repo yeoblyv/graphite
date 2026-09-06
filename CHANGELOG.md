@@ -10,6 +10,13 @@ Baseline for the first public release.
 
 ### Added
 
+- `ShowConfirm`, a Yes/No confirmation modal, and `ShowTextEditor`,
+  `ShowValueEditor`'s free-form-text counterpart for prompting a single
+  line of arbitrary text (e.g. naming a file or directory) instead of a
+  bounded number.
+- `Application.SetOnQuitRequested`, letting a program intercept Escape
+  when no modal is open (e.g. to show a confirmation dialog) instead of
+  quitting immediately.
 - Thread-safe cross-goroutine widget updates via `Application.Invoke`.
 - A modal stack (`Application.SetModal`/`CloseModal`), replacing the earlier
   single-modal-window limitation.

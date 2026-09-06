@@ -29,6 +29,7 @@ Key methods:
 | `SetModal(mod *Window)` / `CloseModal()` | Push/pop the modal stack — see [modals.md](modals.md). |
 | `SetStatus(text string)` | Set the status bar text along the bottom row. |
 | `SetIdleCallback(cb func())` | Set a function called repeatedly once the user has been idle — see below. |
+| `SetOnQuitRequested(fn func())` | Override what Escape does with no modal open — see below. |
 | `Invoke(fn func())` | Queue `fn` to run on the main loop — the only safe way to touch widget state from another goroutine. |
 | `ShowMessage(title, message string, style ButtonStyle)` | Open a single-button modal dialog. |
 | `Quit()` | Stop `Run` after the current frame. |
@@ -53,9 +54,13 @@ torn down:
    [Canvas](#canvas-double-buffering-and-diffing) below).
 6. **Poll for input** (`pollEvent`, waits up to 10ms).
 7. **Run the idle callback**, if 300ms have passed with no input.
-8. **Route the event**: `Esc` closes the topmost modal or quits the
-   application; everything else goes to the topmost modal if one is open,
-   otherwise to the active window.
+8. **Route the event**: `Esc` closes the topmost modal if one is open;
+   with no modal open, it quits the application, unless
+   `SetOnQuitRequested` set an override — in that case the override is
+   called instead of `Quit`, and is itself responsible for deciding
+   whether and when to call `Quit` (typically after confirming via
+   `ShowConfirm`). Every other event goes to the topmost modal if one is
+   open, otherwise to the active window.
 
 The terminal is always restored to cooked mode on return from `Run`,
 including on panic (`defer app.term.restore()`), so a crashing program

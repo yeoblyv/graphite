@@ -2,8 +2,9 @@
 
 A modal in Graphite is just a `Window` pushed onto `Application`'s modal
 stack instead of set as the active window. This document covers the
-modal stack itself and the three modal dialogs the library ships:
-`ShowMessage`, `ShowValueEditor`, and `ShowFilePicker`.
+modal stack itself and the five modal dialogs the library ships:
+`ShowMessage`, `ShowConfirm`, `ShowValueEditor`, `ShowTextEditor`, and
+`ShowFilePicker`.
 
 ## The modal stack
 
@@ -74,6 +75,24 @@ labeled "OK", styled per `style`, which closes the modal — pass
 `Graphite.BtnDanger` for error messages, `Graphite.BtnDefault` for
 neutral notices, etc.
 
+## `ShowConfirm`: a Yes/No dialog
+
+```go
+func ShowConfirm(app *Application, title, message string, style ButtonStyle, onConfirm func())
+```
+
+```go
+Graphite.ShowConfirm(app, " Delete ", "Delete 3 files?", Graphite.BtnDanger, func() {
+	deleteSelectedFiles()
+})
+```
+
+Sized the same way as `ShowMessage` (height computed from how `message`
+wraps at 42 columns). "Yes" is styled per `style` and calls `onConfirm`
+before closing; "No" just closes. Use it for anything with a real cost to
+getting it wrong — deleting files, quitting with unsaved state — where a
+single-button `ShowMessage` isn't enough.
+
 ## `ShowValueEditor`: type an exact number
 
 ```go
@@ -96,6 +115,25 @@ restarting. "Cancel" closes without calling `onConfirm`. This is
 general-purpose, not `Fader`-specific — see
 [fader.md](fader.md#showvalueeditor-typing-an-exact-value) for the
 canonical way to wire it to a double-click.
+
+## `ShowTextEditor`: type a free-form string
+
+```go
+func ShowTextEditor(app *Application, title, label, current string, onConfirm func(string))
+```
+
+```go
+Graphite.ShowTextEditor(app, " Rename ", "New name:", entry.Name(), func(newName string) {
+	os.Rename(entry.Name(), newName)
+})
+```
+
+`ShowValueEditor`'s non-numeric counterpart: prompts for one line of
+arbitrary text instead of a bounded number, pre-filled with `current`. "OK"
+and `Enter` both confirm; a blank (whitespace-only) value shows an inline
+error and leaves the modal open rather than closing it, since every known
+caller — naming a file or a directory — requires a non-blank result.
+"Cancel" closes without calling `onConfirm`.
 
 ## `ShowFilePicker`: browse and select a file
 

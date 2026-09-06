@@ -95,6 +95,47 @@ func TestCanvas_DefaultTheme(t *testing.T) {
 	}
 }
 
+func TestApplication_EscapeQuitsByDefault(t *testing.T) {
+	app := NewApplication()
+
+	app.routeEvent(Event{Type: EventKey, Key: KeyEscape})
+
+	if app.running {
+		t.Error("Escape with no modal and no quit hook should quit the application")
+	}
+}
+
+func TestApplication_OnQuitRequestedOverridesEscape(t *testing.T) {
+	app := NewApplication()
+	requested := false
+	app.SetOnQuitRequested(func() { requested = true })
+
+	app.routeEvent(Event{Type: EventKey, Key: KeyEscape})
+
+	if !requested {
+		t.Error("SetOnQuitRequested hook was not called on Escape")
+	}
+	if !app.running {
+		t.Error("Escape must not quit directly once a quit hook is set")
+	}
+}
+
+func TestApplication_OnQuitRequestedDoesNotFireInsideAModal(t *testing.T) {
+	app := NewApplication()
+	requested := false
+	app.SetOnQuitRequested(func() { requested = true })
+	app.SetModal(NewWindow(40, 10, "modal"))
+
+	app.routeEvent(Event{Type: EventKey, Key: KeyEscape})
+
+	if requested {
+		t.Error("quit hook fired for Escape while a modal was open; Escape should close the modal instead")
+	}
+	if app.topModal() != nil {
+		t.Error("Escape did not close the open modal")
+	}
+}
+
 func TestApplication_SetThemeAffectsRendering(t *testing.T) {
 	app := NewApplication()
 	app.canvas.Resize(20, 5)

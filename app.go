@@ -16,13 +16,14 @@ import (
 // need to be global (terminal mode, color theme) lives on this struct
 // instead.
 type Application struct {
-	canvas        *Canvas
-	term          *terminal
-	activeWindow  *Window
-	modalStack    []*Window
-	running       bool
-	statusBarText string
-	idleCallback  func()
+	canvas          *Canvas
+	term            *terminal
+	activeWindow    *Window
+	modalStack      []*Window
+	running         bool
+	statusBarText   string
+	idleCallback    func()
+	onQuitRequested func()
 
 	invokeMu    sync.Mutex
 	invokeQueue []func()
@@ -171,6 +172,15 @@ func (app *Application) SetIdleCallback(cb func()) {
 	app.idleCallback = cb
 }
 
+// SetOnQuitRequested overrides what Escape does when no modal is open: instead
+// of quitting immediately, Run calls fn and leaves the application running.
+// fn is responsible for deciding whether to quit — typically by opening a
+// ShowConfirm dialog whose "Yes" button calls Quit. Passing nil restores the
+// default immediate-quit behavior.
+func (app *Application) SetOnQuitRequested(fn func()) {
+	app.onQuitRequested = fn
+}
+
 // Quit stops Run after the current frame.
 func (app *Application) Quit() {
 	app.running = false
@@ -219,19 +229,33 @@ func (app *Application) Run() {
 			app.idleCallback()
 		}
 
-		if top := app.topModal(); top != nil {
-			if ev.Type == EventKey && ev.Key == KeyEscape {
-				app.CloseModal()
-			} else if ev.Type != EventNone {
-				top.HandleEvent(ev)
-			}
-		} else {
-			if ev.Type == EventKey && ev.Key == KeyEscape {
-				app.Quit()
-			} else if ev.Type != EventNone && app.activeWindow != nil {
-				app.activeWindow.HandleEvent(ev)
-			}
+		app.routeEvent(ev)
+	}
+}
+
+// routeEvent dispatches one polled event to the topmost modal, the active
+// window, or Escape's own handling, exactly as the last step of Run's loop
+// body. It is split out from Run so that Escape/quit routing — including
+// SetOnQuitRequested — is exercisable from a test without driving the whole
+// terminal loop.
+func (app *Application) routeEvent(ev Event) {
+	if top := app.topModal(); top != nil {
+		if ev.Type == EventKey && ev.Key == KeyEscape {
+			app.CloseModal()
+		} else if ev.Type != EventNone {
+			top.HandleEvent(ev)
 		}
+		return
+	}
+
+	if ev.Type == EventKey && ev.Key == KeyEscape {
+		if app.onQuitRequested != nil {
+			app.onQuitRequested()
+		} else {
+			app.Quit()
+		}
+	} else if ev.Type != EventNone && app.activeWindow != nil {
+		app.activeWindow.HandleEvent(ev)
 	}
 }
 
