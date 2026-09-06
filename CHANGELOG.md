@@ -10,6 +10,11 @@ Baseline for the first public release.
 
 ### Added
 
+- `Canvas.Theme()`, so a custom widget defined outside package `Graphite`
+  can read the live palette in its own `DrawRelative` — previously only
+  widgets inside the package could, via the unexported `c.theme` field,
+  so a third-party widget had no way to restyle automatically when
+  `SetTheme` changes the palette.
 - `KeyF1`-`KeyF12`, decoded from both the SS3 (`F1`-`F4`) and CSI-tilde
   (`F5`-`F12`, and an alternate `F1`-`F4` encoding) escape sequences
   terminals send for function keys. Previously an `F`-key's escape

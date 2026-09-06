@@ -451,6 +451,14 @@ func (c *Canvas) GetCellBg(x, y int) Color {
 	return c.theme.BgScreen
 }
 
+// Theme returns the color palette this Canvas currently renders with, so a
+// custom widget defined outside package Graphite (see
+// docs/custom-widgets.md) can read live theme colors in its own
+// DrawRelative the same way every built-in widget reads c.theme — instead
+// of only being able to capture colors once, at construction time, from
+// whatever Theme its caller happened to have on hand.
+func (c *Canvas) Theme() Theme { return c.theme }
+
 // Width returns the canvas width in columns.
 func (c *Canvas) Width() int { return c.width }
 

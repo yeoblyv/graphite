@@ -70,6 +70,21 @@ row.AddChild(newSwatch("weight 2", theme.Success), 2)
 panel.AddWidget(row)
 ```
 
+`swatch` captures its color once, at construction, because it only ever
+needs a fixed, deliberately-chosen color (that's the whole point of a
+color-swatch widget). A widget that should restyle automatically when the
+application calls `SetTheme` — the common case — reads the live palette
+in `DrawRelative` via `c.Theme()` instead, exactly like a built-in widget
+reads `c.theme`:
+
+```go
+func (w *myWidget) DrawRelative(c *Graphite.Canvas, offX, offY, pW, pH int) {
+	w.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
+	theme := c.Theme()
+	c.DrawText(w.AbsX, w.AbsY, w.Text, theme.BgWindow, theme.FgWindow)
+}
+```
+
 ### The one rule every `DrawRelative` override must follow
 
 **Always call `s.BaseWidget.DrawRelative(c, offX, offY, pW, pH)` first**,

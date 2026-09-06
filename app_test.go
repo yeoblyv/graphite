@@ -95,6 +95,19 @@ func TestCanvas_DefaultTheme(t *testing.T) {
 	}
 }
 
+func TestCanvas_ThemeReflectsSetTheme(t *testing.T) {
+	app := NewApplication()
+	if got := app.canvas.Theme(); got != DefaultTheme() {
+		t.Fatalf("Theme() before SetTheme = %+v, want %+v", got, DefaultTheme())
+	}
+
+	custom := Theme{Primary: 999}
+	app.SetTheme(custom)
+	if got := app.canvas.Theme(); got != custom {
+		t.Fatalf("Theme() after SetTheme = %+v, want %+v", got, custom)
+	}
+}
+
 func TestApplication_EscapeQuitsByDefault(t *testing.T) {
 	app := NewApplication()
 

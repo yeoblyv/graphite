@@ -70,7 +70,10 @@ type Theme struct {
 
 Every widget's `DrawRelative` reads these fields off `c.theme` (the
 `Canvas`'s current theme) rather than hardcoding colors, so replacing the
-`Theme` restyles the entire application uniformly.
+`Theme` restyles the entire application uniformly. A custom widget defined
+outside package `Graphite` reads the same live values through the public
+`c.Theme()` getter (`c.theme` itself is unexported) — see
+[custom-widgets.md](custom-widgets.md).
 
 ### `DefaultTheme()`
 
