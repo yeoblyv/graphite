@@ -145,6 +145,13 @@ type Theme struct {
 	Warning    Color
 	Disabled   Color
 	FgDisabled Color
+	// Accent is a secondary accent distinct from Primary, for a program
+	// that needs to color two different things without one borrowing the
+	// other's meaning — e.g. Primary for focus/selection and Accent for a
+	// multi-selection tag marker. No built-in widget reads it; it exists
+	// for custom widgets (see docs/custom-widgets.md) that need a second
+	// accent of their own.
+	Accent Color
 }
 
 // DefaultTheme returns the built-in color palette used by a new Canvas until
@@ -165,6 +172,7 @@ func DefaultTheme() Theme {
 		Warning:    RGB(210, 153, 34),
 		Disabled:   RGB(48, 54, 61),
 		FgDisabled: RGB(110, 118, 129),
+		Accent:     RGB(188, 140, 255),
 	}
 }
 

@@ -10,6 +10,11 @@ Baseline for the first public release.
 
 ### Added
 
+- `Theme.Accent`, a second accent color distinct from `Primary`. No
+  built-in widget reads it — it's for a custom widget that needs to color
+  two different things without one borrowing the other's meaning (e.g.
+  `Primary` for pane focus/cursor, `Accent` for a multi-selection tag
+  marker).
 - `Canvas.Theme()`, so a custom widget defined outside package `Graphite`
   can read the live palette in its own `DrawRelative` — previously only
   widgets inside the package could, via the unexported `c.theme` field,

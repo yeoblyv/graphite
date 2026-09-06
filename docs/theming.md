@@ -65,6 +65,7 @@ type Theme struct {
 	Warning    Color // caution semantic color
 	Disabled   Color // a disabled widget's background
 	FgDisabled Color // muted/secondary text (placeholders, disabled text, scrollbar track, ...)
+	Accent     Color // a secondary accent distinct from Primary; no built-in widget reads it
 }
 ```
 
@@ -100,6 +101,7 @@ Theme{
 	Warning:    RGB(210, 153, 34),
 	Disabled:   RGB(48, 54, 61),
 	FgDisabled: RGB(110, 118, 129),
+	Accent:     RGB(188, 140, 255),
 }
 ```
 
@@ -120,6 +122,7 @@ app.SetTheme(Graphite.Theme{
 	Warning:    Graphite.RGB(235, 203, 139),
 	Disabled:   Graphite.RGB(76, 86, 106),
 	FgDisabled: Graphite.RGB(143, 153, 168),
+	Accent:     Graphite.RGB(180, 142, 173),
 })
 ```
 
