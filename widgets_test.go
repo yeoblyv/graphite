@@ -166,6 +166,49 @@ func TestWindow_EnabledWidgetRespondsToMouseClick(t *testing.T) {
 	}
 }
 
+// Regression/contract: when two widgets both hit-test true at the same
+// point — e.g. a MenuStrip's open dropdown overlapping a full-screen
+// sibling drawn beneath it — Window resolves the tie in favor of whichever
+// widget was added to the Window last, matching Draw's own last-drawn-on-
+// top order. A consumer that wants a widget's overlay (dropdown, popup) to
+// win clicks over what it visually covers must add that widget after the
+// sibling(s) it can overlap.
+func TestWindow_MouseDownOnOverlappingHitTestPrefersLastAddedWidget(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+
+	background := newEventSpy(0, 0, 0, 0) // stretches to fill the window
+	win.AddWidget(background)
+
+	var clicked bool
+	menu := NewMenuStrip([]MenuCategory{
+		{Label: "File", Items: []MenuItem{{Label: "Open", Action: func() { clicked = true }}}},
+	})
+	win.AddWidget(menu) // added after background: must win the tie
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	// Open the dropdown with a click on the "File" header.
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: menu.AbsX + 2, MouseY: menu.AbsY})
+	if menu.OpenIdx != 0 {
+		t.Fatalf("OpenIdx = %d after clicking \"File\", want 0 (open)", menu.OpenIdx)
+	}
+	background.received = nil // discard the header click itself
+
+	// The dropdown's first item is drawn at (menu.AbsX+2, menu.AbsY+2), a
+	// point that also falls inside background's full-window bounds.
+	itemX, itemY := menu.AbsX+2, menu.AbsY+2
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: itemX, MouseY: itemY})
+
+	if !clicked {
+		t.Error("clicking the dropdown item did not run its Action — the click was likely misrouted to the widget beneath it")
+	}
+	if len(background.received) != 0 {
+		t.Errorf("background widget also received the click: %v, want none (menu should have exclusive priority while its dropdown covers this point)", background.received)
+	}
+}
+
 // Regression: Items is a plain exported slice, and a caller is free to
 // reassign it to a shorter slice without resetting Selected — exactly what
 // components/erbe-3100-tester does between ping-test runs. Before the
