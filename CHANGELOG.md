@@ -16,6 +16,7 @@ Baseline for the first public release.
   sequence was misread as a lone `Escape` keypress (closing a modal or
   quitting the application) followed by its remaining bytes leaking
   through as ordinary characters.
+- `KeyInsert`, decoded from its CSI-tilde escape sequence the same way.
 - `ShowConfirm`, a Yes/No confirmation modal, and `ShowTextEditor`,
   `ShowValueEditor`'s free-form-text counterpart for prompting a single
   line of arbitrary text (e.g. naming a file or directory) instead of a

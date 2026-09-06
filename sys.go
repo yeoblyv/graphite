@@ -123,13 +123,14 @@ var ss3Key = map[byte]KeyCode{
 
 // csiTildeKey maps the numeric parameter of a CSI-tilde escape sequence
 // ("\x1b[" + digits + "~") to the key it represents. This is the portable
-// encoding for Delete and for F5-F12 (and an alternate encoding some
+// encoding for Insert, Delete, and F5-F12 (and an alternate encoding some
 // terminals also use for F1-F4) across every terminal Graphite targets,
 // including Windows Terminal and conhost.exe once virtual-terminal input
 // processing is enabled (see docs/windows-terminal.md). 16 and 22 have no
 // assigned key by long-standing VT220 convention and are intentionally
 // absent.
 var csiTildeKey = map[int]KeyCode{
+	2:  KeyInsert,
 	3:  KeyDelete,
 	11: KeyF1,
 	12: KeyF2,

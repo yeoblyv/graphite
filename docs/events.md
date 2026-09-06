@@ -82,6 +82,7 @@ const (
 	KeyF10       KeyCode = 1018
 	KeyF11       KeyCode = 1019
 	KeyF12       KeyCode = 1020
+	KeyInsert    KeyCode = 1021
 )
 ```
 
@@ -101,6 +102,9 @@ as an alternate encoding for `F1`-`F4` on some terminals). Neither
 [architecture.md](architecture.md) for `Tab`/`Escape`, the only two keys
 that are — so a program is free to wire all twelve to its own commands,
 e.g. a Total-Commander-style `F5` Copy/`F6` Move/`F8` Delete bar.
+
+`KeyInsert` is decoded the same CSI-tilde way, for programs that use it
+for the classic file-manager "tag/mark this row and move down" gesture.
 
 ## Two keys `Window`/`Application` reserve
 

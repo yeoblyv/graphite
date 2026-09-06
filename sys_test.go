@@ -18,6 +18,7 @@ func TestParseANSI(t *testing.T) {
 		{"arrow down", []byte{27, '[', 'B'}, Event{Type: EventKey, Key: KeyDown}},
 		{"arrow right", []byte{27, '[', 'C'}, Event{Type: EventKey, Key: KeyRight}},
 		{"arrow left", []byte{27, '[', 'D'}, Event{Type: EventKey, Key: KeyLeft}},
+		{"insert", []byte("\033[2~"), Event{Type: EventKey, Key: KeyInsert}},
 		{"delete", []byte{27, '[', '3', '~'}, Event{Type: EventKey, Key: KeyDelete}},
 		{"f1 (SS3)", []byte{27, 'O', 'P'}, Event{Type: EventKey, Key: KeyF1}},
 		{"f2 (SS3)", []byte{27, 'O', 'Q'}, Event{Type: EventKey, Key: KeyF2}},

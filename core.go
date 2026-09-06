@@ -40,6 +40,7 @@ const (
 	KeyF10       KeyCode = 1018
 	KeyF11       KeyCode = 1019
 	KeyF12       KeyCode = 1020
+	KeyInsert    KeyCode = 1021
 )
 
 // EventType discriminates the kind of input an Event carries.
