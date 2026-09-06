@@ -131,6 +131,22 @@ func (c Color) Darken(pct float64) Color {
 	)
 }
 
+// ContrastText returns black or white, whichever reads better as text on
+// top of c, using perceived luminance (ITU-R BT.601: 0.299R + 0.587G +
+// 0.114B). This is the exact computation showcase's own contrastText
+// helper (see docs/custom-widgets.md) already duplicated locally; it lives
+// here now so a widget that colors itself from an arbitrary or
+// caller-supplied background — not just a fixed theme field — doesn't
+// have to re-derive it.
+func (c Color) ContrastText() Color {
+	r, g, b := c.Components()
+	luma := 0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)
+	if luma > 140 {
+		return RGB(0, 0, 0)
+	}
+	return RGB(255, 255, 255)
+}
+
 // Theme is the color palette a Canvas renders widgets with.
 type Theme struct {
 	BgScreen   Color

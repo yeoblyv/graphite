@@ -6,6 +6,23 @@ import (
 	"unicode/utf8"
 )
 
+func TestColor_ContrastText(t *testing.T) {
+	tests := []struct {
+		name string
+		bg   Color
+		want Color
+	}{
+		{"bright amber", Hex("#FFD23D"), RGB(0, 0, 0)},
+		{"near-black", RGB(13, 13, 15), RGB(255, 255, 255)},
+		{"white", RGB(255, 255, 255), RGB(0, 0, 0)},
+	}
+	for _, tc := range tests {
+		if got := tc.bg.ContrastText(); got != tc.want {
+			t.Errorf("%s: ContrastText() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestCanvas_DrawCellSanitizesControlCharacters(t *testing.T) {
 	c := NewCanvas()
 	c.Resize(10, 1)

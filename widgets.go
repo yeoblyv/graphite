@@ -441,18 +441,51 @@ type MenuCategory struct {
 	Items []MenuItem
 }
 
-// MenuStrip is a top-level horizontal bar containing clickable categories that open dropdowns.
+// MenuStrip is a top-level horizontal bar containing clickable categories
+// that open dropdowns.
 type MenuStrip struct {
 	BaseWidget
 	Categories []MenuCategory
 	OpenIdx    int
+	// BgColor overrides the strip's (and its open dropdown's) background;
+	// ColorNone (the default set by NewMenuStrip) uses the theme's
+	// BgWidget/BgWindow instead, matching the strip's original
+	// appearance. FgColor overrides the text color; ColorNone auto-picks
+	// black or white for contrast against BgColor (via Color.ContrastText)
+	// once BgColor is itself set, or falls back to the theme's FgWindow
+	// when neither is set.
+	BgColor Color
+	FgColor Color
 }
 
+// NewMenuStrip creates a MenuStrip spanning the full width of whatever
+// contains it, with BgColor/FgColor left at their default (ColorNone,
+// meaning "use the theme").
 func NewMenuStrip(categories []MenuCategory) *MenuStrip {
 	base := NewBaseWidget(0, 0, 0, 1)
 	base.SetPercentLayout(0, 0, 100, 0)
 	base.IsFocusable = true
-	return &MenuStrip{BaseWidget: base, Categories: categories, OpenIdx: -1}
+	return &MenuStrip{BaseWidget: base, Categories: categories, OpenIdx: -1, BgColor: ColorNone, FgColor: ColorNone}
+}
+
+// resolveColors returns (bar bg, bar fg, open-category bg, open-category
+// fg, dropdown bg, dropdown fg). With BgColor unset, this reproduces the
+// strip's original theme-driven appearance exactly (bar reads BgWidget/
+// FgWindow, the open category highlights with Primary/BgWindow, the
+// dropdown reads BgWindow/FgWindow) — every existing MenuStrip is
+// unaffected by this method's addition. With BgColor set, the whole strip
+// and its dropdown share one flat color (the open category darkened
+// slightly to still show which one is open), with FgColor or an
+// auto-computed contrast color for all of the text.
+func (m *MenuStrip) resolveColors(theme Theme) (barBg, barFg, openBg, openFg, dropBg, dropFg Color) {
+	if m.BgColor == ColorNone {
+		return theme.BgWidget, theme.FgWindow, theme.Primary, theme.BgWindow, theme.BgWindow, theme.FgWindow
+	}
+	fg := m.FgColor
+	if fg == ColorNone {
+		fg = m.BgColor.ContrastText()
+	}
+	return m.BgColor, fg, m.BgColor.Darken(0.2), fg, m.BgColor, fg
 }
 
 // HitTest overrides BaseWidget.HitTest to capture all clicks while a menu is open.
@@ -463,9 +496,10 @@ func (m *MenuStrip) HitTest(mx, my int) bool {
 	return m.BaseWidget.HitTest(mx, my)
 }
 
+// DrawRelative implements Widget.
 func (m *MenuStrip) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	m.BaseWidget.DrawRelative(c, offX, offY, pW, pH)
-	bg, fg := c.theme.BgWidget, c.theme.FgWindow
+	bg, fg, openBg, openFg, _, _ := m.resolveColors(c.theme)
 	for i := 0; i < m.LastW; i++ {
 		c.DrawCell(m.AbsX+i, m.AbsY, " ", bg, fg)
 	}
@@ -475,13 +509,14 @@ func (m *MenuStrip) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		lbl := " " + cat.Label + " "
 		itemBg, itemFg := bg, fg
 		if i == m.OpenIdx {
-			itemBg, itemFg = c.theme.Primary, c.theme.BgWindow
+			itemBg, itemFg = openBg, openFg
 		}
 		c.DrawText(cursorX, m.AbsY, lbl, itemBg, itemFg)
 		cursorX += len([]rune(lbl))
 	}
 }
 
+// DrawOverlay implements Widget.
 func (m *MenuStrip) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
 	if m.OpenIdx < 0 || m.OpenIdx >= len(m.Categories) {
 		return
@@ -512,7 +547,7 @@ func (m *MenuStrip) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
 		c.DrawCell(dropX+dropW, dropY+i+1, "░", c.GetCellBg(dropX+dropW, dropY+i+1), c.theme.Disabled)
 	}
 
-	bg, fg := c.theme.BgWindow, c.theme.FgWindow
+	_, _, _, _, bg, fg := m.resolveColors(c.theme)
 	for iy := 0; iy < dropH-1; iy++ {
 		for ix := 0; ix < dropW; ix++ {
 			c.DrawCell(dropX+ix, dropY+iy, " ", bg, fg)
@@ -524,6 +559,9 @@ func (m *MenuStrip) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
 	}
 }
 
+// HandleEvent implements Widget: clicking a category toggles its dropdown
+// open/closed, and clicking an item in an open dropdown runs its Action
+// and closes the dropdown.
 func (m *MenuStrip) HandleEvent(ev Event) {
 	if ev.Type == EventMouseDown {
 		if ev.MouseY == m.AbsY {

@@ -166,6 +166,53 @@ func TestWindow_EnabledWidgetRespondsToMouseClick(t *testing.T) {
 	}
 }
 
+func TestNewMenuStrip_DefaultsToThemeColors(t *testing.T) {
+	menu := NewMenuStrip(nil)
+	theme := DefaultTheme()
+
+	bg, fg, openBg, openFg, dropBg, dropFg := menu.resolveColors(theme)
+	if bg != theme.BgWidget || fg != theme.FgWindow {
+		t.Errorf("default bar colors = (%v, %v), want (BgWidget, FgWindow)", bg, fg)
+	}
+	if openBg != theme.Primary || openFg != theme.BgWindow {
+		t.Errorf("default open-category colors = (%v, %v), want (Primary, BgWindow)", openBg, openFg)
+	}
+	if dropBg != theme.BgWindow || dropFg != theme.FgWindow {
+		t.Errorf("default dropdown colors = (%v, %v), want (BgWindow, FgWindow)", dropBg, dropFg)
+	}
+}
+
+func TestMenuStrip_CustomBgColorAutoComputesContrastText(t *testing.T) {
+	menu := NewMenuStrip(nil)
+	menu.BgColor = Hex("#FFD23D") // bright amber: contrast text should be black
+
+	bg, fg, openBg, openFg, dropBg, dropFg := menu.resolveColors(DefaultTheme())
+	black := RGB(0, 0, 0)
+	if bg != menu.BgColor || fg != black {
+		t.Errorf("bar colors = (%v, %v), want (%v, black)", bg, fg, menu.BgColor)
+	}
+	if openFg != black || dropFg != black {
+		t.Errorf("open/dropdown fg = (%v, %v), want black for both", openFg, dropFg)
+	}
+	if openBg == bg {
+		t.Error("the open category should be visually distinguishable from the closed bar")
+	}
+	if dropBg != menu.BgColor {
+		t.Errorf("dropdown bg = %v, want the same custom BgColor as the bar", dropBg)
+	}
+}
+
+func TestMenuStrip_CustomFgColorOverridesAutoContrast(t *testing.T) {
+	menu := NewMenuStrip(nil)
+	menu.BgColor = Hex("#FFD23D")
+	menu.FgColor = RGB(10, 20, 30)
+
+	_, fg, _, _, _, dropFg := menu.resolveColors(DefaultTheme())
+	if fg != menu.FgColor || dropFg != menu.FgColor {
+		t.Errorf("fg = (%v, %v), want explicit FgColor (%v) for both", fg, dropFg, menu.FgColor)
+	}
+}
+
 func TestNewWindow_DefaultsToBorderedChrome(t *testing.T) {
 	win := NewWindow(40, 10, "test")
 	if win.Chrome != ChromeBordered {

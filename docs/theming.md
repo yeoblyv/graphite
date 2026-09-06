@@ -39,14 +39,16 @@ r, g, b := c.Components()   // unpack back to 8-bit components
 dimmer := c.Darken(0.3)     // scaled 30% of the way towards black
 ```
 
-`Components()` is what you'd use to, say, pick black or white text based
-on a background's perceived luminance (see `showcase`'s `contrastText`
-helper, which computes ITU-R BT.601 luma from `Components()` and picks
-whichever of black/white reads better). `Darken(pct)` scales towards
-black — `0` returns the color unchanged, `1` returns black — and is how
-several widgets derive an "inactive" variant of an accent color without
-needing a second explicit color field: `Fader`'s inactive Mute/Solo icon
-buttons use `activeColor.Darken(0.65)`, and unfocused danger buttons use
+`Components()` is what `ContrastText()` is built on: it computes ITU-R
+BT.601 luma from `Components()` and returns black or white, whichever
+reads better on top of `c` — use it whenever a widget colors itself from
+something other than a fixed theme field (a caller-supplied accent, say)
+and can't know ahead of time whether black or white text will read
+correctly on it. `Darken(pct)` scales towards black — `0` returns the
+color unchanged, `1` returns black — and is how several widgets derive an
+"inactive" variant of an accent color without needing a second explicit
+color field: `Fader`'s inactive Mute/Solo icon buttons use
+`activeColor.Darken(0.65)`, and unfocused danger buttons use
 `theme.Danger.Darken(0.3)`.
 
 ## `Theme`

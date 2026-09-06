@@ -529,6 +529,8 @@ type MenuStrip struct {
 	BaseWidget
 	Categories []MenuCategory
 	OpenIdx    int // -1 when no category's dropdown is open
+	BgColor    Color // ColorNone (default): theme-driven, see below
+	FgColor    Color // ColorNone (default): auto-contrast once BgColor is set, else theme.FgWindow
 }
 
 func NewMenuStrip(categories []MenuCategory) *MenuStrip
@@ -548,3 +550,13 @@ func NewMenuStrip(categories []MenuCategory) *MenuStrip
   `Left`/`Right`/`Enter` support) — it's mouse-only. Add your own
   keyboard shortcuts as separate top-level key handling if you need
   keyboard-driven menus.
+- By default (`BgColor`/`FgColor` both `ColorNone`) the strip reads
+  `theme.BgWidget`/`FgWindow`, its open category highlights with
+  `theme.Primary`/`BgWindow`, and its dropdown reads `theme.BgWindow`/
+  `FgWindow` — unchanged from before these fields existed. Set `BgColor`
+  to give the whole strip (bar and dropdown alike) one flat accent color
+  instead — e.g. `menu.BgColor = Graphite.Hex("#FFD23D")` for a bright
+  amber strip — and leave `FgColor` at `ColorNone` to have the text color
+  picked automatically for contrast (via `Color.ContrastText`) rather than
+  guessing black or white yourself. Set `FgColor` explicitly if you want a
+  specific text color instead of the auto-computed one.

@@ -10,6 +10,16 @@ Baseline for the first public release.
 
 ### Added
 
+- `Color.ContrastText()`, returning black or white for readable text on
+  an arbitrary background — the exact computation `showcase`'s own
+  `contrastText` helper already duplicated locally, promoted so a widget
+  coloring itself from something other than a fixed theme field doesn't
+  have to re-derive it.
+- `MenuStrip.BgColor`/`FgColor`, letting the strip and its dropdown share
+  one flat accent color instead of the theme's `BgWidget`/`BgWindow` —
+  `FgColor` left at `ColorNone` auto-picks a contrasting text color via
+  `Color.ContrastText`. Both default to `ColorNone` (theme-driven,
+  unchanged from before), so no existing `MenuStrip` is affected.
 - `Window.Chrome` / `ChromeBorderless` / `NewFullscreenWindow()`: an
   edge-to-edge window mode with no border, drop shadow, or title bar, for
   an application's main window rather than a floating dialog.
