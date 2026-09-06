@@ -10,6 +10,11 @@ Baseline for the first public release.
 
 ### Added
 
+- `Window.Chrome` / `ChromeBorderless` / `NewFullscreenWindow()`: an
+  edge-to-edge window mode with no border, drop shadow, or title bar, for
+  an application's main window rather than a floating dialog.
+  `ChromeBordered` (the zero value) is unchanged and remains the default,
+  so every existing `NewWindow` caller is unaffected.
 - `Theme.Accent`, a second accent color distinct from `Primary`. No
   built-in widget reads it — it's for a custom widget that needs to color
   two different things without one borrowing the other's meaning (e.g.

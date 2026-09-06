@@ -166,6 +166,58 @@ func TestWindow_EnabledWidgetRespondsToMouseClick(t *testing.T) {
 	}
 }
 
+func TestNewWindow_DefaultsToBorderedChrome(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+	if win.Chrome != ChromeBordered {
+		t.Errorf("NewWindow's Chrome = %v, want ChromeBordered (the zero value) so every existing window is unaffected by ChromeBorderless's addition", win.Chrome)
+	}
+}
+
+func TestWindow_BorderlessFillsCanvasWithNoBorder(t *testing.T) {
+	win := NewFullscreenWindow()
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	corner := c.buffer[0]
+	if corner.Symbol == "┌" {
+		t.Error("a borderless window drew a border corner glyph at (0,0)")
+	}
+	bottomRight := c.buffer[24*80-1]
+	if bottomRight.BgColor != c.theme.BgWindow {
+		t.Errorf("bottom-right cell background = %v, want the window background to fill exactly to the canvas edge", bottomRight.BgColor)
+	}
+}
+
+func TestWindow_BorderlessPositionsChildAtOrigin(t *testing.T) {
+	win := NewFullscreenWindow()
+	child := newEventSpy(0, 0, 5, 5)
+	win.AddWidget(child)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	if child.AbsX != 0 || child.AbsY != 0 {
+		t.Errorf("child AbsX/AbsY = %d/%d, want 0/0 (no padding, no centering) by default", child.AbsX, child.AbsY)
+	}
+}
+
+func TestWindow_BorderlessRespectsPadding(t *testing.T) {
+	win := NewFullscreenWindow()
+	win.PaddingX, win.PaddingY = 2, 1
+	child := newEventSpy(0, 0, 5, 5)
+	win.AddWidget(child)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	if child.AbsX != 2 || child.AbsY != 1 {
+		t.Errorf("child AbsX/AbsY = %d/%d, want 2/1 to match PaddingX/PaddingY", child.AbsX, child.AbsY)
+	}
+}
+
 // Regression/contract: when two widgets both hit-test true at the same
 // point — e.g. a MenuStrip's open dropdown overlapping a full-screen
 // sibling drawn beneath it — Window resolves the tie in favor of whichever

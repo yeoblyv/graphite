@@ -244,11 +244,29 @@ win.AddWidget(someWidget)
 app.SetWindow(win)
 ```
 
-`Window` is a bordered, titled, centered container. It holds a flat list
-of top-level `Children` (which may themselves be containers — `Panel`,
-`Flex`, `GroupBox` — with their own nested children) and owns two things
-no individual widget can do on its own: **focus order** and **event
-routing**.
+`Window` is a bordered, titled, centered container by default. It holds a
+flat list of top-level `Children` (which may themselves be containers —
+`Panel`, `Flex`, `GroupBox` — with their own nested children) and owns two
+things no individual widget can do on its own: **focus order** and
+**event routing**.
+
+### Chrome: bordered dialog vs. full-screen application
+
+```go
+win := Graphite.NewWindow(50, 10, " My Window ")   // ChromeBordered (default): centered, bordered, drop shadow
+win := Graphite.NewFullscreenWindow()              // ChromeBorderless: fills the canvas exactly, no decoration
+```
+
+`Window.Chrome` is `ChromeBordered` (the zero value) unless you opt into
+`ChromeBorderless` — every existing window, and every window a future
+`NewWindow` call creates, keeps drawing exactly as before. Reach for
+`ChromeBorderless` when `Window` is the *application's* main window rather
+than a floating dialog (a commander-style file manager, a full-screen
+dashboard): it skips the border, drop shadow, and title bar entirely and
+sizes itself to the canvas on every frame, ignoring
+`FixedW`/`FixedH`/`PctW`/`PctH`. `PaddingX`/`PaddingY` still apply (0 by
+default here, vs. `NewWindow`'s 4/2) if you want breathing room around the
+edge without a visible frame.
 
 ### Focus order and Tab
 
@@ -262,11 +280,17 @@ call `SetFocus` yourself for the common case of "focus the first field."
 
 `Window.HandleEvent` is where hit-testing and mouse capture live:
 
-- **`EventMouseDown`**: walks the tree, hit-testing every visible widget
-  (and its children, recursively, if the parent itself was hit) to find
-  the deepest match. If it's enabled, it becomes focused (any previously
-  focused widget is unfocused first) and receives the event. The window
-  also remembers this widget as `mouseCapture`.
+- **`EventMouseDown`**: walks `Children` in order, hit-testing every
+  visible widget (and its children, recursively, if the parent itself was
+  hit); the *last* match found wins ties, matching `Draw`'s own
+  last-drawn-on-top order. This is what lets `MenuStrip`'s open dropdown
+  (or any widget whose `HitTest` expands past its normal bounds while an
+  overlay is showing) win clicks over a sibling it visually covers — as
+  long as that widget was added *after* the sibling it can overlap; add it
+  before instead and the sibling wins the tie every time. Once a target is
+  found and it's enabled, it becomes focused (any previously focused
+  widget is unfocused first) and receives the event. The window also
+  remembers this widget as `mouseCapture`.
 - **`EventMouseDrag`** / **`EventMouseUp`**: go straight to whatever
   widget is currently captured, bypassing hit-testing entirely. This is
   what lets you drag a `Fader` handle or a scrollbar thumb past the

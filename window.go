@@ -1,14 +1,36 @@
 package Graphite
 
-// Window is a bordered, titled container drawn centered on the canvas. It
-// holds a flat list of top-level children (which may themselves be
-// containers like Panel) and owns focus navigation and event routing for
-// the whole subtree.
+// WindowChrome selects how much decoration Window.Draw paints around a
+// window's content.
+type WindowChrome int
+
+// Supported chrome modes.
+const (
+	// ChromeBordered draws a titled border and drop shadow, centered on
+	// the canvas at the window's fixed/percentage size. Window's original
+	// behavior, and still the default (the zero value), so every existing
+	// window is completely unaffected by ChromeBorderless's addition.
+	ChromeBordered WindowChrome = iota
+	// ChromeBorderless fills the entire canvas with no border, shadow, or
+	// title bar — for a full-screen application's main window (e.g. a
+	// commander-style file manager) rather than a floating dialog.
+	// FixedW/FixedH/PctW/PctH are ignored in this mode: the window is
+	// always exactly the canvas size.
+	ChromeBorderless
+)
+
+// Window is a titled container holding a flat list of top-level children
+// (which may themselves be containers like Panel) and owning focus
+// navigation and event routing for the whole subtree. By default
+// (ChromeBordered) it draws a border, drop shadow, and title, centered on
+// the canvas at a fixed or percentage size — see ChromeBorderless for a
+// full-screen alternative.
 type Window struct {
 	FixedW, FixedH, PctW, PctH int
 	Title                      string
 	Children                   []Widget
 	PaddingX, PaddingY         int
+	Chrome                     WindowChrome
 
 	// mouseCapture is the widget that was hit by the most recent
 	// EventMouseDown. Until the matching EventMouseUp, drag and release
@@ -39,6 +61,15 @@ func NewWindow(w, h int, title string) *Window {
 // SetPercentSize switches the window to a size relative to the canvas
 // instead of FixedW/FixedH.
 func (w *Window) SetPercentSize(pw, ph int) { w.PctW, w.PctH = pw, ph }
+
+// NewFullscreenWindow creates a Window with ChromeBorderless chrome and no
+// padding — it fills the canvas exactly, edge to edge, with no border,
+// shadow, or title bar. Call SetPercentLayout/SetPosition on individual
+// children (or give the window PaddingX/PaddingY) for breathing room; the
+// window itself adds none by default, unlike NewWindow's 4/2.
+func NewFullscreenWindow() *Window {
+	return &Window{Chrome: ChromeBorderless, Children: make([]Widget, 0)}
+}
 
 // getFlatFocusables walks the widget tree (descending into containers via
 // GetChildren) and returns every visible, focusable widget in traversal
@@ -180,9 +211,17 @@ func (w *Window) HandleEvent(ev Event) {
 	}
 }
 
-// Draw renders the window's frame, drop shadow, and title centered on c,
-// then draws its children within the resulting padded content area.
+// Draw renders the window, then its children within the resulting padded
+// content area. With ChromeBorderless (see NewFullscreenWindow), that's
+// the whole canvas with no decoration; the default ChromeBordered instead
+// draws a frame, drop shadow, and title centered on c at a fixed or
+// percentage size.
 func (w *Window) Draw(c *Canvas) {
+	if w.Chrome == ChromeBorderless {
+		w.drawBorderless(c)
+		return
+	}
+
 	aW, aH := w.FixedW, w.FixedH
 	if w.PctW > 0 {
 		aW = (c.Width() * w.PctW) / 100
@@ -232,6 +271,32 @@ func (w *Window) Draw(c *Canvas) {
 	}
 
 	cX, cY, cW, cH := aX+w.PaddingX, aY+w.PaddingY, aW-(w.PaddingX*2), aH-(w.PaddingY*2)
+	for _, child := range w.Children {
+		if child.IsVisible() {
+			child.DrawRelative(c, cX, cY, cW, cH)
+		}
+	}
+	for _, child := range w.Children {
+		if child.IsVisible() {
+			child.DrawOverlay(c, cX, cY, cW, cH)
+		}
+	}
+}
+
+// drawBorderless implements Draw for ChromeBorderless: no frame, shadow,
+// or title — just the theme's window background filling the canvas
+// exactly, with children laid out inside PaddingX/PaddingY (0 by default,
+// per NewFullscreenWindow).
+func (w *Window) drawBorderless(c *Canvas) {
+	aW, aH := c.Width(), c.Height()
+	bg, fg := c.theme.BgWindow, c.theme.FgWindow
+	for iy := 0; iy < aH; iy++ {
+		for ix := 0; ix < aW; ix++ {
+			c.DrawCell(ix, iy, " ", bg, fg)
+		}
+	}
+
+	cX, cY, cW, cH := w.PaddingX, w.PaddingY, aW-(w.PaddingX*2), aH-(w.PaddingY*2)
 	for _, child := range w.Children {
 		if child.IsVisible() {
 			child.DrawRelative(c, cX, cY, cW, cH)
