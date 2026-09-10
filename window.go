@@ -71,6 +71,18 @@ func NewFullscreenWindow() *Window {
 	return &Window{Chrome: ChromeBorderless, Children: make([]Widget, 0)}
 }
 
+// focusedWidget returns whichever widget in this window currently has
+// focus, or nil if none does — used to find a RawInputReceiver (see
+// terminal.go) to route undecoded input bytes to.
+func (w *Window) focusedWidget() Widget {
+	for _, f := range w.getFlatFocusables() {
+		if f.HasFocus() {
+			return f
+		}
+	}
+	return nil
+}
+
 // getFlatFocusables walks the widget tree (descending into containers via
 // GetChildren) and returns every visible, focusable widget in traversal
 // order, which is also Tab order.

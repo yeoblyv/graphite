@@ -77,6 +77,25 @@ func (t *terminal) restore() {
 	fmt.Print("\033[?1006l\033[?1015l\033[?1002l\033[?25h\033[?1049l")
 }
 
+// pollRaw waits briefly for the next chunk of raw input, returning nil if
+// nothing arrives within the timeout. Used instead of pollEvent while a
+// RawInputReceiver has focus (see Application.focusedRawReceiver), so its
+// bytes reach the receiver completely undecoded rather than round-
+// tripping through parseANSI's Event vocabulary first. A handful of
+// events already sitting in eventQueue from before focus moved to a raw
+// receiver are simply left queued (and delivered once decoded input
+// routing resumes) — an exceedingly rare mid-batch race in practice,
+// since one input read almost always corresponds to one discrete
+// keystroke.
+func (t *terminal) pollRaw() []byte {
+	select {
+	case buf := <-t.input:
+		return buf
+	case <-time.After(10 * time.Millisecond):
+		return nil
+	}
+}
+
 // pollEvent waits briefly for the next input event, returning EventNone if
 // nothing arrives within the timeout so the render loop keeps ticking (and
 // can service idle callbacks, animations, etc.) even without input.

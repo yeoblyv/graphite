@@ -1,6 +1,7 @@
 package Graphite
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"time"
@@ -136,6 +137,34 @@ func (app *Application) topModal() *Window {
 	return app.modalStack[len(app.modalStack)-1]
 }
 
+// RawInputReceiver is implemented by a widget that needs terminal input
+// as raw, undecoded bytes while it has focus — bypassing parseANSI's
+// Event decoding entirely. Terminal (see terminal.go) is the only
+// built-in widget that does: forwarding a shell's own keystrokes
+// byte-for-byte is the whole point of an embedded terminal, and
+// round-tripping them through graphite's own smaller KeyCode vocabulary
+// first would lose anything that vocabulary doesn't happen to cover
+// (application-cursor-mode arrows, exotic modifier combinations, ...).
+type RawInputReceiver interface {
+	Widget
+	WriteRaw(p []byte)
+}
+
+// focusedRawReceiver returns the focused widget as a RawInputReceiver, if
+// the currently focused widget (in the topmost modal, or the active
+// window if no modal is open) both exists and implements it.
+func (app *Application) focusedRawReceiver() RawInputReceiver {
+	win := app.topModal()
+	if win == nil {
+		win = app.activeWindow
+	}
+	if win == nil {
+		return nil
+	}
+	raw, _ := win.focusedWidget().(RawInputReceiver)
+	return raw
+}
+
 // Invoke queues fn to run on the main loop just before the next frame is
 // drawn. This is the only safe way to touch widget state from a background
 // goroutine: mutating a widget's fields directly from another goroutine
@@ -220,6 +249,14 @@ func (app *Application) Run() {
 
 		app.canvas.Render()
 
+		if raw := app.focusedRawReceiver(); raw != nil {
+			if data := app.term.pollRaw(); data != nil {
+				lastIn = time.Now()
+				app.forwardRaw(raw, data)
+			}
+			continue
+		}
+
 		ev := app.term.pollEvent()
 		if ev.Type != EventNone {
 			lastIn = time.Now()
@@ -231,6 +268,28 @@ func (app *Application) Run() {
 
 		app.routeEvent(ev)
 	}
+}
+
+// rawDetachByte is Ctrl+\ (ASCII FS, 0x1C) — the one byte forwardRaw
+// intercepts instead of passing through to a focused RawInputReceiver, so
+// there's still a way to move focus off an embedded terminal that
+// otherwise consumes every single keystroke. Chosen because it's a
+// POSIX-conventional signal key almost nothing uses interactively inside
+// a shell.
+const rawDetachByte = 0x1C
+
+// forwardRaw sends data to raw, except for rawDetachByte, which instead
+// advances focus (the same as an ordinary Tab keypress) so the terminal
+// doesn't have to be the last focusable widget the user can ever reach.
+func (app *Application) forwardRaw(raw RawInputReceiver, data []byte) {
+	if idx := bytes.IndexByte(data, rawDetachByte); idx >= 0 {
+		if idx > 0 {
+			raw.WriteRaw(data[:idx])
+		}
+		app.routeEvent(Event{Type: EventKey, Key: KeyTab})
+		return
+	}
+	raw.WriteRaw(data)
 }
 
 // routeEvent dispatches one polled event to the topmost modal, the active
