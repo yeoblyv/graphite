@@ -48,6 +48,19 @@ func (w *Window) ClearMouseCapture() {
 	w.mouseCapture = nil
 }
 
+// HasMouseCapture reports whether a mouse gesture is still in flight —
+// EventMouseDown has hit some widget but the matching EventMouseUp
+// hasn't arrived yet. Application.Run checks this before switching a
+// focused RawInputReceiver's raw-passthrough on: if a gesture that
+// started before focus changed (e.g. a click on a menu item that itself
+// creates and focuses a new Terminal tab) is still open, its trailing
+// EventMouseUp needs to reach the widget that captured it — normally
+// decoded and routed — rather than being redirected to the newly
+// focused widget as raw bytes.
+func (w *Window) HasMouseCapture() bool {
+	return w.mouseCapture != nil
+}
+
 // NewWindow creates a Window with a fixed size and title, and default
 // padding around its content area.
 func NewWindow(w, h int, title string) *Window {

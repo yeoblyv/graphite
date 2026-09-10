@@ -79,6 +79,13 @@ byte: `Application.Run` strips it out of the stream before it reaches
 keypress). It was chosen because it's a POSIX-conventional signal key
 almost nothing uses interactively inside a shell.
 
+**Gaining focus mid-click:** a `Terminal` created and focused from inside
+a click's own handling (e.g. a menu item's Action) doesn't start raw
+passthrough until that click's `EventMouseUp` has been decoded and routed
+normally — `Application.Run` checks `Window.HasMouseCapture` first, so
+the tail end of the very click that created the `Terminal` can't leak
+into it as raw bytes.
+
 ## Known limitations
 
 - **No scrollback.** Only the visible grid is kept; scrolled-off lines

@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Baseline for the first public release.
 
+### Fixed
+
+- A `RawInputReceiver` that gained focus as a side effect of the very
+  click that's still in flight (e.g. a menu item whose action creates
+  and focuses a new `Terminal`) could have that same click's trailing
+  `EventMouseUp` redirected to it as raw bytes instead of being decoded
+  and routed to whatever actually captured the gesture — visibly, the
+  tail end of a mouse-click escape sequence leaking into the terminal
+  as typed garbage. `Application.Run` now checks the new
+  `Window.HasMouseCapture` first and defers to normal decoded routing
+  while a gesture is still open, regardless of who currently has focus.
+
 ### Added
 
 - `MenuItem.Separator` (an inert divider row) and `MenuItem.SubItems` (a

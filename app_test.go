@@ -5,6 +5,50 @@ import (
 	"testing"
 )
 
+// fakeRawReceiver is a minimal RawInputReceiver for exercising
+// focusedRawReceiver without needing a real Terminal (which needs an
+// actual pty).
+type fakeRawReceiver struct {
+	BaseWidget
+	received []byte
+}
+
+func (f *fakeRawReceiver) WriteRaw(p []byte) { f.received = append(f.received, p...) }
+
+// Regression: a click that both hits some widget (capturing the mouse)
+// and, as a side effect of running that widget's own click handling,
+// moves focus to a RawInputReceiver (e.g. a menu item that creates and
+// focuses a new Terminal tab) must not have its own trailing EventMouseUp
+// redirected to that receiver as raw bytes — the capture is still with
+// the original widget until the up event clears it.
+func TestApplication_FocusedRawReceiverSuppressedDuringMouseCapture(t *testing.T) {
+	app := NewApplication()
+	win := NewWindow(40, 10, "test")
+	raw := &fakeRawReceiver{BaseWidget: NewBaseWidget(0, 0, 10, 1)}
+	raw.IsFocusable = true
+	win.AddWidget(raw)
+	app.SetWindow(win)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	// Focus raw directly (standing in for "a click elsewhere focused it
+	// as a side effect") while a capture from some other gesture is still
+	// open.
+	raw.SetFocus(true)
+	win.mouseCapture = raw // any non-nil capture target demonstrates the guard; a different widget makes no difference here
+
+	if got := app.focusedRawReceiver(); got != nil {
+		t.Error("focusedRawReceiver returned non-nil while a mouse gesture is still in flight, want nil")
+	}
+
+	win.mouseCapture = nil
+	if got := app.focusedRawReceiver(); got != raw {
+		t.Error("focusedRawReceiver returned nil once the capture cleared, want the focused receiver")
+	}
+}
+
 func TestApplication_InvokeDrainsOnMainGoroutine(t *testing.T) {
 	app := NewApplication()
 

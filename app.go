@@ -152,13 +152,19 @@ type RawInputReceiver interface {
 
 // focusedRawReceiver returns the focused widget as a RawInputReceiver, if
 // the currently focused widget (in the topmost modal, or the active
-// window if no modal is open) both exists and implements it.
+// window if no modal is open) both exists and implements it — unless a
+// mouse gesture is still in flight in that window (see
+// Window.HasMouseCapture), in which case nil is returned regardless: its
+// trailing EventMouseUp needs the normal decoded routing to reach
+// whatever captured the gesture, not to be redirected to a widget that
+// only gained focus as a side effect of the gesture's own EventMouseDown
+// (e.g. a menu click that itself creates and focuses a new Terminal tab).
 func (app *Application) focusedRawReceiver() RawInputReceiver {
 	win := app.topModal()
 	if win == nil {
 		win = app.activeWindow
 	}
-	if win == nil {
+	if win == nil || win.HasMouseCapture() {
 		return nil
 	}
 	raw, _ := win.focusedWidget().(RawInputReceiver)
