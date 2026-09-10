@@ -529,8 +529,10 @@ win.AddWidget(menu)
 
 ```go
 type MenuItem struct {
-	Label  string
-	Action func()
+	Label     string
+	Action    func()
+	Separator bool       // true: an inert divider row; Label/Action/SubItems ignored
+	SubItems  []MenuItem // non-empty: a nested flyout opens here instead of running Action
 }
 
 type MenuCategory struct {
@@ -553,7 +555,24 @@ func NewMenuStrip(categories []MenuCategory) *MenuStrip
   is set in the constructor) and sits one row tall — the conventional
   top-of-window application menu bar.
 - Clicking a category's label toggles its dropdown open/closed; clicking
-  an item in an open dropdown runs its `Action` and closes the dropdown.
+  a plain item in an open dropdown runs its `Action` and closes the
+  dropdown. A `Separator: true` item is an inert divider row — clicking
+  it does nothing and leaves the dropdown open. An item with `SubItems`
+  ignores `Action`; clicking it opens a nested flyout to its right
+  instead (closing it again on a second click), and the parent dropdown
+  stays open while it's shown. Only one level of nesting is supported —
+  an item inside `SubItems` with its own `SubItems` is never opened.
+  Example (a "Tab → Add" submenu):
+  ```go
+  {Label: "Tab", Items: []Graphite.MenuItem{
+  	{Label: "Add", SubItems: []Graphite.MenuItem{
+  		{Label: "New file list", Action: newFileListTab},
+  		{Label: "New terminal", Action: newTerminalTab},
+  	}},
+  	{Separator: true},
+  	{Label: "Close", Action: closeCurrentTab},
+  }}
+  ```
 - `HitTest` is overridden to capture the *entire* hit area while any
   dropdown is open (not just the strip's own row), so a click anywhere —
   including on the dropdown itself, which is drawn via `DrawOverlay` — is

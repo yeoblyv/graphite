@@ -10,6 +10,10 @@ Baseline for the first public release.
 
 ### Added
 
+- `MenuItem.Separator` (an inert divider row) and `MenuItem.SubItems` (a
+  nested flyout opening to the item's right instead of running `Action`,
+  one level deep). Both default to their zero value (`false`/`nil`), so
+  every existing `MenuStrip` is unaffected.
 - `Terminal`, a widget that runs a shell (or any interactive program)
   attached to a real pseudo-terminal and renders its output faithfully —
   full-screen programs (`vim`, `htop`, `less`, a nested `ssh` session)

@@ -393,6 +393,96 @@ func TestWindow_MouseDownOnOverlappingHitTestPrefersLastAddedWidget(t *testing.T
 	}
 }
 
+func TestMenuStrip_ClickingASeparatorDoesNothing(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+	var clicked bool
+	menu := NewMenuStrip([]MenuCategory{
+		{Label: "File", Items: []MenuItem{
+			{Separator: true},
+			{Label: "Open", Action: func() { clicked = true }},
+		}},
+	})
+	win.AddWidget(menu)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: menu.AbsX + 2, MouseY: menu.AbsY})
+	// The separator is the dropdown's first row (menu.AbsY+2).
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: menu.AbsX + 2, MouseY: menu.AbsY + 2})
+
+	if clicked {
+		t.Error("clicking the separator ran an action; it should be inert")
+	}
+	if menu.OpenIdx != 0 {
+		t.Errorf("OpenIdx = %d after clicking a separator, want 0 (dropdown stays open)", menu.OpenIdx)
+	}
+}
+
+func TestMenuStrip_ClickingASubmenuItemOpensItWithoutClosingTheDropdown(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+	menu := NewMenuStrip([]MenuCategory{
+		{Label: "Tab", Items: []MenuItem{
+			{Label: "Add", SubItems: []MenuItem{
+				{Label: "New file list"},
+				{Label: "New terminal"},
+			}},
+		}},
+	})
+	win.AddWidget(menu)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: menu.AbsX + 2, MouseY: menu.AbsY})
+	if menu.OpenIdx != 0 {
+		t.Fatalf("OpenIdx = %d after clicking \"Tab\", want 0", menu.OpenIdx)
+	}
+
+	// "Add" is the dropdown's first (only) item row.
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: menu.AbsX + 2, MouseY: menu.AbsY + 2})
+	if menu.OpenSubIdx != 0 {
+		t.Fatalf("OpenSubIdx = %d after clicking \"Add\", want 0 (its submenu open)", menu.OpenSubIdx)
+	}
+	if menu.OpenIdx != 0 {
+		t.Error("OpenIdx was reset by opening a submenu; the parent dropdown should stay open")
+	}
+}
+
+func TestMenuStrip_ClickingASubmenuLeafRunsItAndClosesEverything(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+	var picked string
+	menu := NewMenuStrip([]MenuCategory{
+		{Label: "Tab", Items: []MenuItem{
+			{Label: "Add", SubItems: []MenuItem{
+				{Label: "New file list", Action: func() { picked = "file list" }},
+				{Label: "New terminal", Action: func() { picked = "terminal" }},
+			}},
+		}},
+	})
+	win.AddWidget(menu)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: menu.AbsX + 2, MouseY: menu.AbsY})
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: menu.AbsX + 2, MouseY: menu.AbsY + 2}) // open "Add"'s submenu
+
+	subX, subY, _, _ := menu.submenuGeometry(0, 0)
+	// The submenu's second row is "New terminal".
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: subX + 1, MouseY: subY + 2})
+
+	if picked != "terminal" {
+		t.Errorf("picked = %q, want \"terminal\"", picked)
+	}
+	if menu.OpenIdx != -1 || menu.OpenSubIdx != -1 {
+		t.Errorf("OpenIdx/OpenSubIdx = %d/%d after picking a submenu leaf, want both closed (-1)", menu.OpenIdx, menu.OpenSubIdx)
+	}
+}
+
 // Regression: Items is a plain exported slice, and a caller is free to
 // reassign it to a shorter slice without resetting Selected — exactly what
 // components/erbe-3100-tester does between ping-test runs. Before the

@@ -449,9 +449,17 @@ func (p *Panel) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
 // MenuStrip
 // -------------------------------------------------------------------------
 
+// MenuItem is one row in a MenuStrip dropdown (or a nested SubItems
+// flyout): a plain clickable item (Label+Action), a separator (Separator
+// true; Label/Action/SubItems all ignored), or a submenu (SubItems
+// non-empty; Action ignored, clicking instead opens a nested flyout of
+// SubItems next to it). Only one level of nesting is supported — an item
+// inside SubItems with its own SubItems is not opened.
 type MenuItem struct {
-	Label  string
-	Action func()
+	Label     string
+	Action    func()
+	Separator bool
+	SubItems  []MenuItem
 }
 
 type MenuCategory struct {
@@ -465,6 +473,9 @@ type MenuStrip struct {
 	BaseWidget
 	Categories []MenuCategory
 	OpenIdx    int
+	// OpenSubIdx is the index within Categories[OpenIdx].Items whose
+	// SubItems flyout is currently open, or -1 if none is.
+	OpenSubIdx int
 	// BgColor overrides the strip's (and its open dropdown's) background;
 	// ColorNone (the default set by NewMenuStrip) uses the theme's
 	// BgWidget/BgWindow instead, matching the strip's original
@@ -483,7 +494,50 @@ func NewMenuStrip(categories []MenuCategory) *MenuStrip {
 	base := NewBaseWidget(0, 0, 0, 1)
 	base.SetPercentLayout(0, 0, 100, 0)
 	base.IsFocusable = true
-	return &MenuStrip{BaseWidget: base, Categories: categories, OpenIdx: -1, BgColor: ColorNone, FgColor: ColorNone}
+	return &MenuStrip{BaseWidget: base, Categories: categories, OpenIdx: -1, OpenSubIdx: -1, BgColor: ColorNone, FgColor: ColorNone}
+}
+
+// dropdownGeometry returns the on-screen rectangle of Categories[catIdx]'s
+// dropdown: (x, y) of its top-left corner, its width, and its height
+// (item rows only, not counting the shadow row DrawOverlay adds below).
+func (m *MenuStrip) dropdownGeometry(catIdx int) (x, y, w, h int) {
+	cursorX := m.AbsX + 1
+	for i := 0; i < catIdx; i++ {
+		cursorX += len([]rune(" " + m.Categories[i].Label + " "))
+	}
+	items := m.Categories[catIdx].Items
+	dropW := 15
+	for _, item := range items {
+		if item.Separator {
+			continue
+		}
+		w := len([]rune(item.Label)) + 4
+		if item.SubItems != nil {
+			w += 2 // room for the "▶" submenu indicator
+		}
+		if w > dropW {
+			dropW = w
+		}
+	}
+	return cursorX, m.AbsY + 1, dropW, len(items)
+}
+
+// submenuGeometry returns the on-screen rectangle of the SubItems flyout
+// belonging to item itemIdx within Categories[catIdx]'s dropdown,
+// positioned to its right at that item's row.
+func (m *MenuStrip) submenuGeometry(catIdx, itemIdx int) (x, y, w, h int) {
+	dropX, dropY, dropW, _ := m.dropdownGeometry(catIdx)
+	subItems := m.Categories[catIdx].Items[itemIdx].SubItems
+	subW := 15
+	for _, item := range subItems {
+		if item.Separator {
+			continue
+		}
+		if w := len([]rune(item.Label)) + 4; w > subW {
+			subW = w
+		}
+	}
+	return dropX + dropW, dropY + itemIdx, subW, len(subItems)
 }
 
 // resolveColors returns (bar bg, bar fg, open-category bg, open-category
@@ -534,97 +588,140 @@ func (m *MenuStrip) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	}
 }
 
+// drawMenuList paints one flyout's background/shadow and its items at
+// (x, y, w, h) — shared by DrawOverlay for both the category dropdown and
+// a SubItems submenu, so they read as the same kind of surface.
+func (m *MenuStrip) drawMenuList(c *Canvas, x, y, w, h int, items []MenuItem, openSubIdx int) {
+	fullH := h + 2 // +1 for the top row this func's caller already accounted for, +1 shadow row
+	for i := 1; i <= w; i++ {
+		c.DrawCell(x+i, y+fullH-1, "░", c.GetCellBg(x+i, y+fullH-1), c.theme.Disabled)
+	}
+	for i := 0; i < fullH-1; i++ {
+		c.DrawCell(x+w, y+i+1, "░", c.GetCellBg(x+w, y+i+1), c.theme.Disabled)
+	}
+
+	_, _, _, _, bg, fg := m.resolveColors(c.theme)
+	for iy := 0; iy < fullH-1; iy++ {
+		for ix := 0; ix < w; ix++ {
+			c.DrawCell(x+ix, y+iy, " ", bg, fg)
+		}
+	}
+
+	for i, item := range items {
+		row := y + 1 + i
+		if item.Separator {
+			for ix := 1; ix < w-1; ix++ {
+				c.DrawCell(x+ix, row, "─", bg, c.theme.Disabled)
+			}
+			continue
+		}
+		label := item.Label
+		if item.SubItems != nil {
+			label += strings.Repeat(" ", max(1, w-4-len([]rune(item.Label))-1)) + "▶"
+		}
+		itemBg, itemFg := bg, fg
+		if i == openSubIdx {
+			itemBg, itemFg = bg.Darken(0.2), fg
+		}
+		for ix := 0; ix < w; ix++ {
+			c.DrawCell(x+ix, row, " ", itemBg, itemFg)
+		}
+		c.DrawText(x+2, row, label, itemBg, itemFg)
+	}
+}
+
 // DrawOverlay implements Widget.
 func (m *MenuStrip) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
 	if m.OpenIdx < 0 || m.OpenIdx >= len(m.Categories) {
 		return
 	}
-
 	cat := m.Categories[m.OpenIdx]
+	dropX, dropY, dropW, dropH := m.dropdownGeometry(m.OpenIdx)
+	m.drawMenuList(c, dropX, dropY, dropW, dropH, cat.Items, m.OpenSubIdx)
 
-	cursorX := m.AbsX + 1
-	for i := 0; i < m.OpenIdx; i++ {
-		cursorX += len([]rune(" " + m.Categories[i].Label + " "))
-	}
-
-	dropX := cursorX
-	dropY := m.AbsY + 1
-	dropW := 15
-	for _, item := range cat.Items {
-		w := len([]rune(item.Label)) + 4
-		if w > dropW {
-			dropW = w
-		}
-	}
-	dropH := len(cat.Items) + 2
-
-	for i := 1; i <= dropW; i++ {
-		c.DrawCell(dropX+i, dropY+dropH-1, "░", c.GetCellBg(dropX+i, dropY+dropH-1), c.theme.Disabled)
-	}
-	for i := 0; i < dropH-1; i++ {
-		c.DrawCell(dropX+dropW, dropY+i+1, "░", c.GetCellBg(dropX+dropW, dropY+i+1), c.theme.Disabled)
-	}
-
-	_, _, _, _, bg, fg := m.resolveColors(c.theme)
-	for iy := 0; iy < dropH-1; iy++ {
-		for ix := 0; ix < dropW; ix++ {
-			c.DrawCell(dropX+ix, dropY+iy, " ", bg, fg)
-		}
-	}
-
-	for i, item := range cat.Items {
-		c.DrawText(dropX+2, dropY+1+i, item.Label, bg, fg)
+	if m.OpenSubIdx >= 0 && m.OpenSubIdx < len(cat.Items) && cat.Items[m.OpenSubIdx].SubItems != nil {
+		subX, subY, subW, subH := m.submenuGeometry(m.OpenIdx, m.OpenSubIdx)
+		m.drawMenuList(c, subX, subY, subW, subH, cat.Items[m.OpenSubIdx].SubItems, -1)
 	}
 }
 
 // HandleEvent implements Widget: clicking a category toggles its dropdown
-// open/closed, and clicking an item in an open dropdown runs its Action
-// and closes the dropdown.
+// open/closed; clicking a plain item in an open dropdown (or submenu)
+// runs its Action and closes everything; clicking a submenu item (one
+// with SubItems) toggles that submenu instead, leaving the dropdown open;
+// clicking a separator does nothing. Anything else — a click outside
+// every open surface — closes everything, the dropdown's original
+// dismiss-on-outside-click behavior.
 func (m *MenuStrip) HandleEvent(ev Event) {
-	if ev.Type == EventMouseDown {
-		if ev.MouseY == m.AbsY {
-			cursorX := m.AbsX + 1
-			for i, cat := range m.Categories {
-				lblLen := len([]rune(" " + cat.Label + " "))
-				if ev.MouseX >= cursorX && ev.MouseX < cursorX+lblLen {
-					if m.OpenIdx == i {
-						m.OpenIdx = -1
-					} else {
-						m.OpenIdx = i
-					}
-					return
-				}
-				cursorX += lblLen
-			}
-			m.OpenIdx = -1
-		} else if m.OpenIdx >= 0 {
-			cat := m.Categories[m.OpenIdx]
+	if ev.Type != EventMouseDown {
+		return
+	}
 
-			cursorX := m.AbsX + 1
-			for i := 0; i < m.OpenIdx; i++ {
-				cursorX += len([]rune(" " + m.Categories[i].Label + " "))
-			}
-
-			dropX := cursorX
-			dropY := m.AbsY + 1
-			dropW := 15
-			for _, item := range cat.Items {
-				w := len([]rune(item.Label)) + 4
-				if w > dropW {
-					dropW = w
+	if ev.MouseY == m.AbsY {
+		cursorX := m.AbsX + 1
+		for i, cat := range m.Categories {
+			lblLen := len([]rune(" " + cat.Label + " "))
+			if ev.MouseX >= cursorX && ev.MouseX < cursorX+lblLen {
+				if m.OpenIdx == i {
+					m.OpenIdx = -1
+				} else {
+					m.OpenIdx = i
 				}
+				m.OpenSubIdx = -1
+				return
 			}
-			dropH := len(cat.Items)
+			cursorX += lblLen
+		}
+		m.OpenIdx, m.OpenSubIdx = -1, -1
+		return
+	}
 
-			if ev.MouseX >= dropX && ev.MouseX < dropX+dropW && ev.MouseY > dropY && ev.MouseY <= dropY+dropH {
-				itemIdx := ev.MouseY - dropY - 1
-				if itemIdx >= 0 && itemIdx < len(cat.Items) {
-					if cat.Items[itemIdx].Action != nil {
-						cat.Items[itemIdx].Action()
-					}
-				}
+	if m.OpenIdx < 0 {
+		return
+	}
+	cat := m.Categories[m.OpenIdx]
+
+	// A click inside the open submenu, if any, takes priority over the
+	// dropdown beneath it — submenuGeometry places it to the dropdown's
+	// right, but at a row that can still fall within the dropdown's own
+	// column range for a narrow parent, so position alone can't
+	// disambiguate; checking the submenu first does.
+	if m.OpenSubIdx >= 0 && m.OpenSubIdx < len(cat.Items) && cat.Items[m.OpenSubIdx].SubItems != nil {
+		subX, subY, subW, subH := m.submenuGeometry(m.OpenIdx, m.OpenSubIdx)
+		if ev.MouseX >= subX && ev.MouseX < subX+subW && ev.MouseY > subY && ev.MouseY <= subY+subH {
+			sub := cat.Items[m.OpenSubIdx].SubItems
+			idx := ev.MouseY - subY - 1
+			if idx >= 0 && idx < len(sub) && !sub[idx].Separator && sub[idx].Action != nil {
+				sub[idx].Action()
 			}
-			m.OpenIdx = -1
+			m.OpenIdx, m.OpenSubIdx = -1, -1
+			return
 		}
 	}
+
+	dropX, dropY, dropW, dropH := m.dropdownGeometry(m.OpenIdx)
+	if ev.MouseX >= dropX && ev.MouseX < dropX+dropW && ev.MouseY > dropY && ev.MouseY <= dropY+dropH {
+		itemIdx := ev.MouseY - dropY - 1
+		if itemIdx >= 0 && itemIdx < len(cat.Items) {
+			item := cat.Items[itemIdx]
+			switch {
+			case item.Separator:
+				// no-op: neither opens a submenu nor closes the dropdown
+			case item.SubItems != nil:
+				if m.OpenSubIdx == itemIdx {
+					m.OpenSubIdx = -1
+				} else {
+					m.OpenSubIdx = itemIdx
+				}
+			default:
+				if item.Action != nil {
+					item.Action()
+				}
+				m.OpenIdx, m.OpenSubIdx = -1, -1
+			}
+		}
+		return
+	}
+
+	m.OpenIdx, m.OpenSubIdx = -1, -1
 }
