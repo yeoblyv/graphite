@@ -10,6 +10,10 @@ Baseline for the first public release.
 
 ### Added
 
+- `Theme.Info`, a third accent distinct from both `Primary` and `Accent`,
+  for a transient "here's a result" highlight (e.g. a search match) that
+  would otherwise have to reuse a color already carrying a different
+  meaning. No built-in widget reads it, the same as `Accent`.
 - `EventMouseRightDown`, decoded from the SGR mouse right-button press
   report that was previously undecoded (silently dropped). It's
   hit-tested and delivered like a scroll event — no focus change, no

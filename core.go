@@ -176,6 +176,12 @@ type Theme struct {
 	// for custom widgets (see docs/custom-widgets.md) that need a second
 	// accent of their own.
 	Accent Color
+	// Info is a third accent, distinct from both Primary and Accent, for a
+	// transient "here's a result" highlight — e.g. a search match — that
+	// would otherwise have to reuse a color already carrying a different
+	// meaning (focus, a tag marker). No built-in widget reads it; like
+	// Accent, it exists for a custom widget that needs its own.
+	Info Color
 }
 
 // DefaultTheme returns the built-in color palette used by a new Canvas until
@@ -197,6 +203,7 @@ func DefaultTheme() Theme {
 		Disabled:   RGB(48, 54, 61),
 		FgDisabled: RGB(110, 118, 129),
 		Accent:     RGB(188, 140, 255),
+		Info:       RGB(100, 150, 255),
 	}
 }
 

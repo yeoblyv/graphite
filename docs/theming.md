@@ -68,6 +68,7 @@ type Theme struct {
 	Disabled   Color // a disabled widget's background
 	FgDisabled Color // muted/secondary text (placeholders, disabled text, scrollbar track, ...)
 	Accent     Color // a secondary accent distinct from Primary; no built-in widget reads it
+	Info       Color // a third accent, distinct from Primary and Accent; no built-in widget reads it
 }
 ```
 
@@ -104,6 +105,7 @@ Theme{
 	Disabled:   RGB(48, 54, 61),
 	FgDisabled: RGB(110, 118, 129),
 	Accent:     RGB(188, 140, 255),
+	Info:       RGB(100, 150, 255),
 }
 ```
 
