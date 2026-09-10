@@ -1,10 +1,24 @@
 package Graphite
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/atotto/clipboard"
+)
 
 func typeRunes(ib *InputBox, s string) {
 	for _, r := range s {
 		ib.HandleEvent(Event{Type: EventKey, CharCode: r})
+	}
+}
+
+// requireClipboard skips the calling test on a system with no working OS
+// clipboard (e.g. a headless CI runner) rather than failing it over
+// something unrelated to what it's actually checking.
+func requireClipboard(t *testing.T) {
+	t.Helper()
+	if err := clipboard.WriteAll("graphite-clipboard-probe"); err != nil {
+		t.Skipf("no working OS clipboard in this environment: %v", err)
 	}
 }
 
@@ -56,6 +70,87 @@ func TestInputBox_CursorClampsToBounds(t *testing.T) {
 	}
 	if ib.CursorPos != len([]rune(ib.Value)) {
 		t.Fatalf("CursorPos = %d, want %d", ib.CursorPos, len([]rune(ib.Value)))
+	}
+}
+
+func TestInputBox_MaskedRendersBulletsNotTheRealValue(t *testing.T) {
+	ib := NewPasswordBox(0, 0, 20, "")
+	typeRunes(ib, "hunter2")
+
+	c := NewCanvas()
+	c.Resize(20, 1)
+	ib.DrawRelative(c, 0, 0, 20, 1)
+
+	for x := 1; x < 1+len("hunter2"); x++ {
+		if got := c.buffer[x].Symbol; got != "•" {
+			t.Errorf("cell %d = %q, want the masking bullet, not the real character", x, got)
+		}
+	}
+}
+
+func TestInputBox_UnmaskedRendersTheRealValue(t *testing.T) {
+	ib := NewInputBox(0, 0, 20, "")
+	typeRunes(ib, "plain")
+
+	c := NewCanvas()
+	c.Resize(20, 1)
+	ib.DrawRelative(c, 0, 0, 20, 1)
+
+	if got := c.buffer[1].Symbol; got != "p" {
+		t.Errorf("cell 1 = %q, want %q (masking must not affect a plain InputBox)", got, "p")
+	}
+}
+
+func TestInputBox_MaskedCtrlCDoesNotTouchTheClipboard(t *testing.T) {
+	requireClipboard(t)
+	clipboard.WriteAll("untouched")
+	ib := NewPasswordBox(0, 0, 20, "")
+	typeRunes(ib, "secret")
+
+	ib.HandleEvent(Event{Type: EventKey, Key: KeyCtrlC})
+
+	got, err := clipboard.ReadAll()
+	if err != nil {
+		t.Fatalf("clipboard.ReadAll: %v", err)
+	}
+	if got != "untouched" {
+		t.Errorf("clipboard = %q, want it left alone (\"untouched\"), Ctrl+C on a masked field must not copy the password", got)
+	}
+}
+
+func TestInputBox_MaskedCtrlXDoesNotClearOrTouchTheClipboard(t *testing.T) {
+	requireClipboard(t)
+	clipboard.WriteAll("untouched")
+	ib := NewPasswordBox(0, 0, 20, "")
+	typeRunes(ib, "secret")
+
+	ib.HandleEvent(Event{Type: EventKey, Key: KeyCtrlX})
+
+	if ib.Value != "secret" {
+		t.Errorf("Value = %q after Ctrl+X on a masked field, want it left alone (%q)", ib.Value, "secret")
+	}
+	got, err := clipboard.ReadAll()
+	if err != nil {
+		t.Fatalf("clipboard.ReadAll: %v", err)
+	}
+	if got != "untouched" {
+		t.Errorf("clipboard = %q, want it left alone (\"untouched\")", got)
+	}
+}
+
+func TestInputBox_UnmaskedCtrlCStillCopiesToClipboard(t *testing.T) {
+	requireClipboard(t)
+	ib := NewInputBox(0, 0, 20, "")
+	typeRunes(ib, "not-a-secret")
+
+	ib.HandleEvent(Event{Type: EventKey, Key: KeyCtrlC})
+
+	got, err := clipboard.ReadAll()
+	if err != nil {
+		t.Fatalf("clipboard.ReadAll: %v", err)
+	}
+	if got != "not-a-secret" {
+		t.Errorf("clipboard = %q, want %q (masking must not affect a plain InputBox's existing Ctrl+C behavior)", got, "not-a-secret")
 	}
 }
 

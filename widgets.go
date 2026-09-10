@@ -219,6 +219,12 @@ type InputBox struct {
 	Value     string
 	CursorPos int
 	OnSubmit  func(string)
+	// Masked renders every character of Value as "•" instead of itself —
+	// for a password or passphrase field — without changing anything
+	// about how Value, CursorPos, or editing actually work; HandleEvent
+	// still operates on the real string, it just never lets Ctrl+C/Ctrl+X
+	// put it on the OS clipboard (see HandleEvent).
+	Masked bool
 }
 
 // NewInputBox creates an InputBox at (x, y) with the given width and label.
@@ -226,6 +232,15 @@ func NewInputBox(x, y, w int, label string) *InputBox {
 	base := NewBaseWidget(x, y, w, 1)
 	base.IsFocusable = true
 	return &InputBox{BaseWidget: base, Label: label, CursorPos: 0}
+}
+
+// NewPasswordBox creates an InputBox identical to NewInputBox except its
+// contents render as "•" and never reach the OS clipboard via Ctrl+C/Ctrl+X
+// — for a password or passphrase field.
+func NewPasswordBox(x, y, w int, label string) *InputBox {
+	ib := NewInputBox(x, y, w, label)
+	ib.Masked = true
+	return ib
 }
 
 // DrawRelative implements Widget.
@@ -271,7 +286,11 @@ func (ib *InputBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	}
 
 	visRunes := runes[startIdx:endIdx]
-	c.DrawText(inX+1, ib.AbsY, string(visRunes), bg, fg)
+	shown := string(visRunes)
+	if ib.Masked {
+		shown = strings.Repeat("•", len(visRunes))
+	}
+	c.DrawText(inX+1, ib.AbsY, shown, bg, fg)
 
 	if ib.IsFocused {
 		cursorScreenX := inX + 1 + ib.CursorPos - scroll
@@ -279,6 +298,9 @@ func (ib *InputBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 			charUnderCursor := " "
 			if ib.CursorPos < len(runes) {
 				charUnderCursor = string(runes[ib.CursorPos])
+				if ib.Masked {
+					charUnderCursor = "•"
+				}
 			}
 			// White-on-black cursor block, independent of the theme.
 			c.DrawCell(cursorScreenX, ib.AbsY, charUnderCursor, RGB(255, 255, 255), RGB(0, 0, 0))
@@ -303,8 +325,18 @@ func (ib *InputBox) HandleEvent(ev Event) {
 		} else if ev.Key == KeyDelete && ib.CursorPos < len(runes) {
 			ib.Value = string(append(runes[:ib.CursorPos], runes[ib.CursorPos+1:]...))
 		} else if ev.Key == KeyCtrlC {
-			clipboard.WriteAll(ib.Value)
+			if !ib.Masked {
+				clipboard.WriteAll(ib.Value)
+			}
 		} else if ev.Key == KeyCtrlX {
+			// A masked field never touches the clipboard, not even to cut —
+			// unlike copy, "do nothing" here (rather than still clearing
+			// the field) avoids surprising a caller into losing a typed
+			// password to a stray Ctrl+X with nothing recoverable from
+			// the clipboard afterward.
+			if ib.Masked {
+				return
+			}
 			clipboard.WriteAll(ib.Value)
 			ib.Value = ""
 			ib.CursorPos = 0

@@ -30,6 +30,13 @@ Baseline for the first public release.
 
 ### Added
 
+- `InputBox.Masked` (and the `NewPasswordBox` constructor that sets it), for
+  a password/passphrase field: every character of `Value` renders as `•`
+  instead of itself, and `Ctrl+C`/`Ctrl+X` never put the real value on the
+  OS clipboard (`Ctrl+X` on a masked box does nothing at all, rather than
+  still clearing the field with nowhere recoverable for it to go). Editing,
+  cursor movement, and `Ctrl+V` paste are unaffected — only what gets drawn
+  and what a copy/cut can reach change. An unmasked `InputBox` is untouched.
 - `MenuItem.Separator` (an inert divider row) and `MenuItem.SubItems` (a
   nested flyout opening to the item's right instead of running `Action`,
   one level deep). Both default to their zero value (`false`/`nil`), so

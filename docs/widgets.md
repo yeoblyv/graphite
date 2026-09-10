@@ -184,9 +184,11 @@ type InputBox struct {
 	Value     string
 	CursorPos int
 	OnSubmit  func(string)
+	Masked    bool
 }
 
 func NewInputBox(x, y, w int, label string) *InputBox
+func NewPasswordBox(x, y, w int, label string) *InputBox
 ```
 
 - `Label` is drawn as static prefix text, not editable; the field itself
@@ -203,6 +205,12 @@ func NewInputBox(x, y, w int, label string) *InputBox
 - The cursor is drawn as a white-on-black block over the character it's
   on, independent of the active theme, so it stays visible against any
   palette.
+- `Masked` (set it directly, or use `NewPasswordBox` instead of
+  `NewInputBox`) renders every character of `Value` as `•` — for a
+  password or passphrase field. Editing and `Ctrl+V` paste work exactly
+  the same on the real string underneath; only rendering changes, plus
+  `Ctrl+C`/`Ctrl+X` are disabled outright so a masked field's contents can
+  never reach the OS clipboard.
 
 `ShowValueEditor` and `ShowFilePicker` (see [modals.md](modals.md)) both
 use `InputBox.OnSubmit` to let `Enter` confirm a modal dialog, not just
