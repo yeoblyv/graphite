@@ -86,8 +86,25 @@ normally — `Application.Run` checks `Window.HasMouseCapture` first, so
 the tail end of the very click that created the `Terminal` can't leak
 into it as raw bytes.
 
+**Mouse input is never raw.** Even once a `Terminal` has focus, an
+incoming SGR mouse report (`Application.Run` recognizes it by its
+`\x1b[<` prefix) is still decoded into an `Event` and routed the normal
+way rather than handed to `WriteRaw` — only keyboard input actually goes
+raw. Without this, clicking a different tab or the other pane would be
+impossible while a `Terminal` has focus, since every byte (mouse reports
+included) would go straight to it before `Window`'s own hit-testing ever
+ran.
+
 ## Known limitations
 
+- **No mouse support inside the terminal.** A mouse click is always
+  decoded and routed normally, even while a `Terminal` has focus —
+  otherwise there would be no way to click anything else (a different
+  tab, the other pane, ...) while it does, since raw passthrough would
+  swallow every byte, mouse reports included, before `Window`'s own
+  hit-testing ever saw them. The tradeoff is that a program relying on
+  terminal mouse reporting (`vim`'s or `tmux`'s mouse mode, say) won't
+  see clicks made inside the `Terminal` widget itself.
 - **No scrollback.** Only the visible grid is kept; scrolled-off lines
   are gone, the same way a bare VT100 terminal (as opposed to a modern
   terminal emulator with a history buffer) behaves.

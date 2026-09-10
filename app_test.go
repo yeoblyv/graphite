@@ -49,6 +49,27 @@ func TestApplication_FocusedRawReceiverSuppressedDuringMouseCapture(t *testing.T
 	}
 }
 
+func TestLooksLikeMouseReport(t *testing.T) {
+	cases := []struct {
+		name string
+		data []byte
+		want bool
+	}{
+		{"SGR mouse down", []byte("\x1b[<0;10;5M"), true},
+		{"SGR mouse up", []byte("\x1b[<0;10;5m"), true},
+		{"plain letter", []byte("a"), false},
+		{"an arrow key", []byte("\x1b[A"), false},
+		{"empty", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := looksLikeMouseReport(tc.data); got != tc.want {
+				t.Errorf("looksLikeMouseReport(%q) = %v, want %v", tc.data, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestApplication_InvokeDrainsOnMainGoroutine(t *testing.T) {
 	app := NewApplication()
 

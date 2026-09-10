@@ -10,6 +10,14 @@ Baseline for the first public release.
 
 ### Fixed
 
+- A mouse click was swallowed as raw bytes by a focused
+  `RawInputReceiver` (a `Terminal`) the same way keyboard input is,
+  making it impossible to click anything else — a different tab, the
+  other pane — while a `Terminal` had focus, since `Window`'s own
+  hit-testing never ran. `Application.Run` now recognizes an SGR mouse
+  report by its `\x1b[<` prefix and always decodes and routes it
+  normally, regardless of who has focus; only keyboard input still goes
+  raw.
 - A `RawInputReceiver` that gained focus as a side effect of the very
   click that's still in flight (e.g. a menu item whose action creates
   and focuses a new `Terminal`) could have that same click's trailing

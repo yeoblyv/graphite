@@ -258,7 +258,22 @@ func (app *Application) Run() {
 		if raw := app.focusedRawReceiver(); raw != nil {
 			if data := app.term.pollRaw(); data != nil {
 				lastIn = time.Now()
-				app.forwardRaw(raw, data)
+				if looksLikeMouseReport(data) {
+					// A mouse click needs normal decoded routing even
+					// while a RawInputReceiver has focus — otherwise
+					// there would be no way to click anything else (a
+					// different tab, the other pane, ...) while it does,
+					// since every byte would go straight to it instead
+					// of ever reaching Window's own hit-testing. This
+					// does mean a RawInputReceiver itself doesn't get
+					// real mouse-report bytes (see Terminal's own
+					// documented limitation), only keyboard input does.
+					for _, ev := range parseANSI(data) {
+						app.routeEvent(ev)
+					}
+				} else {
+					app.forwardRaw(raw, data)
+				}
 			}
 			continue
 		}
@@ -287,6 +302,15 @@ const rawDetachByte = 0x1C
 // forwardRaw sends data to raw, except for rawDetachByte, which instead
 // advances focus (the same as an ordinary Tab keypress) so the terminal
 // doesn't have to be the last focusable widget the user can ever reach.
+// looksLikeMouseReport reports whether data starts with the SGR mouse
+// report prefix ("\x1b[<", the same one parseANSI itself recognizes) —
+// used to keep a mouse click routed normally even while a
+// RawInputReceiver has focus (see Run's use of it), rather than swallowed
+// as raw bytes the same way keyboard input is.
+func looksLikeMouseReport(data []byte) bool {
+	return bytes.HasPrefix(data, []byte("\x1b[<"))
+}
+
 func (app *Application) forwardRaw(raw RawInputReceiver, data []byte) {
 	if idx := bytes.IndexByte(data, rawDetachByte); idx >= 0 {
 		if idx > 0 {
