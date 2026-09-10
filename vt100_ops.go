@@ -98,7 +98,7 @@ func (s *vtScreen) scrollDown(n int) {
 
 func clearRow(g []vtCell, cols, y int) {
 	for x := 0; x < cols; x++ {
-		g[y*cols+x] = vtCell{}
+		g[y*cols+x] = blankVTCell
 	}
 }
 
@@ -277,11 +277,11 @@ func (s *vtScreen) eraseInLine(mode int) {
 	switch mode {
 	case 0:
 		for x := s.cursorX; x < s.cols; x++ {
-			g[row+x] = vtCell{}
+			g[row+x] = blankVTCell
 		}
 	case 1:
 		for x := 0; x <= s.cursorX && x < s.cols; x++ {
-			g[row+x] = vtCell{}
+			g[row+x] = blankVTCell
 		}
 	case 2:
 		clearRow(g, s.cols, s.cursorY)
@@ -316,7 +316,7 @@ func (s *vtScreen) insertChars(n int) {
 		g[row+x] = g[row+x-n]
 	}
 	for x := s.cursorX; x < s.cursorX+n && x < s.cols; x++ {
-		g[row+x] = vtCell{}
+		g[row+x] = blankVTCell
 	}
 }
 
@@ -328,7 +328,7 @@ func (s *vtScreen) deleteChars(n int) {
 	}
 	for x := s.cols - n; x < s.cols; x++ {
 		if x >= s.cursorX {
-			g[row+x] = vtCell{}
+			g[row+x] = blankVTCell
 		}
 	}
 }
@@ -337,7 +337,7 @@ func (s *vtScreen) eraseChars(n int) {
 	g := s.active()
 	row := s.cursorY * s.cols
 	for x := s.cursorX; x < s.cursorX+n && x < s.cols; x++ {
-		g[row+x] = vtCell{}
+		g[row+x] = blankVTCell
 	}
 }
 

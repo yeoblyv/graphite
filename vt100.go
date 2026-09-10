@@ -10,11 +10,17 @@ type vtCell struct {
 	Bold, Underline, Reverse bool
 }
 
-// blank reports whether c is an untouched cell (never written to, as
-// opposed to one explicitly cleared to a space) — used so Terminal's own
-// DrawRelative can leave truly empty cells alone instead of painting over
-// whatever the widget behind it drew.
+// blank reports whether c is an untouched or explicitly erased cell —
+// used so Terminal's own DrawRelative can leave truly empty cells alone
+// instead of painting over whatever the widget behind it drew.
 func (c vtCell) blank() bool { return c.Ch == 0 }
+
+// blankVTCell is the correct "erased" cell: Fg/Bg explicitly ColorNone,
+// so a renderer falls back to its own default colors. Every clearing
+// operation in this file and vt100_ops.go writes this instead of Go's
+// zero-value vtCell{}, whose Fg/Bg would otherwise be Color(0) — solid
+// black — rather than "no color set."
+var blankVTCell = vtCell{Fg: ColorNone, Bg: ColorNone}
 
 // vtParserState is which phase of an escape sequence vtScreen.Write is
 // currently collecting bytes for.
@@ -85,8 +91,8 @@ func (s *vtScreen) Resize(cols, rows int) {
 		rows = 1
 	}
 	s.cols, s.rows = cols, rows
-	s.grid = make([]vtCell, cols*rows)
-	s.altGrid = make([]vtCell, cols*rows)
+	s.grid = newBlankGrid(cols, rows)
+	s.altGrid = newBlankGrid(cols, rows)
 	s.scrollTop, s.scrollBottom = 0, rows-1
 	if s.cursorX >= cols {
 		s.cursorX = cols - 1
@@ -116,9 +122,20 @@ func (s *vtScreen) at(x, y int) *vtCell {
 // coordinates return a blank cell rather than panicking.
 func (s *vtScreen) Cell(x, y int) vtCell {
 	if x < 0 || x >= s.cols || y < 0 || y >= s.rows {
-		return vtCell{}
+		return blankVTCell
 	}
 	return *s.at(x, y)
+}
+
+// newBlankGrid allocates a cols*rows grid pre-filled with blankVTCell
+// (Go's own zero-fill from make() would leave every cell's Fg/Bg at
+// Color(0) — solid black — instead).
+func newBlankGrid(cols, rows int) []vtCell {
+	g := make([]vtCell, cols*rows)
+	for i := range g {
+		g[i] = blankVTCell
+	}
+	return g
 }
 
 // CursorVisible reports whether the cursor should be drawn — false while
