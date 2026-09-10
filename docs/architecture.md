@@ -52,7 +52,12 @@ torn down:
 5. **Render** — diff the back buffer against what was last actually
    written to the terminal, and emit only the changed cells (see
    [Canvas](#canvas-double-buffering-and-diffing) below).
-6. **Poll for input** (`pollEvent`, waits up to 10ms).
+6. **Poll for input** — normally `pollEvent` (waits up to 10ms, decodes
+   into an `Event`); but if the focused widget implements
+   `RawInputReceiver` (see [terminal.md](terminal.md)), `pollRaw` instead,
+   forwarding the raw bytes directly and skipping every step below —
+   `Terminal` is the one built-in widget that needs this, so a shell
+   running inside it gets undecoded, undistorted keystrokes.
 7. **Run the idle callback**, if 300ms have passed with no input.
 8. **Route the event**: `Esc` closes the topmost modal if one is open;
    with no modal open, it quits the application, unless

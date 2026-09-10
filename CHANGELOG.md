@@ -10,6 +10,21 @@ Baseline for the first public release.
 
 ### Added
 
+- `Terminal`, a widget that runs a shell (or any interactive program)
+  attached to a real pseudo-terminal and renders its output faithfully —
+  full-screen programs (`vim`, `htop`, `less`, a nested `ssh` session)
+  included, via a hand-rolled VT100/xterm interpreter (`vtScreen`:
+  incremental parsing, SGR colors/attributes, scroll regions, the
+  alternate screen buffer) and per-OS pty spawning (`startPTY`: real
+  ioctls on Linux/macOS, ConPTY on Windows). Genuinely undistorted
+  keyboard passthrough needed a core input-loop change too: a widget
+  implementing the new `RawInputReceiver` interface receives raw bytes
+  directly while focused, bypassing `parseANSI`'s `Event` decoding
+  entirely, with `Ctrl+\` reserved to detach focus (advances it, like
+  Tab) since a `Terminal` would otherwise consume every keystroke,
+  including the one that would normally escape it. See
+  [docs/terminal.md](docs/terminal.md). No new dependencies — hand-rolled
+  per the project owner's explicit choice over an existing VT100 library.
 - `Theme.Info`, a third accent distinct from both `Primary` and `Accent`,
   for a transient "here's a result" highlight (e.g. a search match) that
   would otherwise have to reuse a color already carrying a different

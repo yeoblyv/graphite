@@ -173,3 +173,26 @@ This end-to-end approach is what caught real layout bugs during
 development that unit-level `HandleEvent` calls alone did not — a widget
 overlapping its neighbor only shows up once real rendering has resolved
 `AbsX`/`AbsY`, not from calling `HandleEvent` with hand-picked coordinates.
+
+## The one exception: `RawInputReceiver`
+
+Every keystroke becomes an `Event` before any widget sees it — with one
+exception. A widget that needs byte-for-byte fidelity with whatever the
+real terminal actually sent (an embedded shell, which can't afford to
+lose application-cursor-mode arrows or exotic modifier combinations to
+graphite's own smaller `KeyCode` vocabulary) implements:
+
+```go
+type RawInputReceiver interface {
+	Widget
+	WriteRaw(p []byte)
+}
+```
+
+While the focused widget implements this, `Application.Run` routes raw
+input bytes to it directly, bypassing `parseANSI`'s `Event` decoding
+entirely — its `HandleEvent` effectively never sees key input during that
+time. `Terminal` (see [terminal.md](terminal.md)) is the only built-in
+widget that does this; see that page for how focus escapes it again
+(`Ctrl+\`, since a widget consuming every keystroke would otherwise trap
+Tab too).

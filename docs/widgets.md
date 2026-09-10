@@ -2,9 +2,11 @@
 
 Every widget below embeds `BaseWidget` (see
 [architecture.md](architecture.md#widget-and-basewidget)) and follows the
-layout rules in [layout.md](layout.md). Two widgets get their own
+layout rules in [layout.md](layout.md). A few widgets get their own
 document instead of a section here because there's enough to say about
-each: [`Fader`](fader.md) (the channel-strip mixer control) and modal
+each: [`Fader`](fader.md) (the channel-strip mixer control),
+[`PianoRoll`](pianoroll.md) (the playable keyboard),
+[`Terminal`](terminal.md) (an embedded pseudo-terminal), and modal
 dialogs / `ShowFilePicker` (see [modals.md](modals.md)). `Panel`, `Flex`,
 and `GroupBox` are layout containers, covered in [layout.md](layout.md)
 rather than repeated here.
