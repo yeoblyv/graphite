@@ -328,6 +328,63 @@ func TestWindow_ClickingANonFocusableTargetStillBlursThePreviousFocus(t *testing
 	}
 }
 
+// focusReadingSpy is a non-focusable widget whose HandleEvent reads a
+// sibling's HasFocus() at the exact moment it runs — the same pattern
+// diskette's own gutter Copy/Move buttons use (see dirButton.srcDst) to
+// decide which pane is the source and which is the destination from
+// whichever one was focused when the button was clicked.
+type focusReadingSpy struct {
+	BaseWidget
+	watch           Widget
+	sawFocusOnClick bool
+}
+
+func newFocusReadingSpy(x, y, w, h int, watch Widget) *focusReadingSpy {
+	return &focusReadingSpy{BaseWidget: NewBaseWidget(x, y, w, h), watch: watch}
+}
+
+func (s *focusReadingSpy) HandleEvent(ev Event) {
+	s.sawFocusOnClick = s.watch.HasFocus()
+}
+
+// Regression: a non-focusable target's own HandleEvent must see the
+// focus state as it was *before* this click, not after this same click's
+// own blur side effect already cleared it. The bug: blurring unconditionally
+// before dispatching (the very first fix for the stale-cursor problem)
+// made any non-focusable widget whose behavior depends on "who was just
+// focused" always see focus already gone — for diskette's gutter
+// Copy/Move buttons specifically, this meant clicking them while the
+// right pane was focused silently acted as if the left pane were,
+// because by the time the button's own click handler ran, the right
+// pane had already been blurred by this same click.
+func TestWindow_NonFocusableTargetSeesPreClickFocusDuringItsOwnHandleEvent(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+	input := NewInputBox(0, 0, 20, "")
+	win.AddWidget(input)
+
+	spy := newFocusReadingSpy(0, 2, 5, 1, input) // default IsFocusable: false
+	win.AddWidget(spy)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: input.AbsX, MouseY: input.AbsY})
+	if !input.HasFocus() {
+		t.Fatal("test setup: expected the InputBox to be focused after clicking it")
+	}
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: spy.AbsX, MouseY: spy.AbsY})
+	if !spy.sawFocusOnClick {
+		t.Error("the non-focusable target's own HandleEvent saw the InputBox already blurred — it should see the pre-click focus state")
+	}
+	// The blur must still happen by the end of the click, same as
+	// TestWindow_ClickingANonFocusableTargetStillBlursThePreviousFocus.
+	if input.HasFocus() {
+		t.Error("InputBox is still focused after the click completed")
+	}
+}
+
 // Regression: same bug, different trigger — a click that hits nothing at
 // all (empty window background) skipped the blur loop entirely too, since
 // it lived inside `if target != nil && ...`.

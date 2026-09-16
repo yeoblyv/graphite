@@ -190,27 +190,50 @@ func (w *Window) HandleEvent(ev Event) {
 		walk(w.Children)
 
 		w.mouseCapture = nil
-		// Blur whatever currently has focus before deciding whether the
-		// click's own target takes it over — unconditionally, not just
-		// when target.CanFocus(). A click that lands on nothing (target
-		// == nil), or on something that isn't itself focusable (a
-		// Label, a disabled control, empty window background), must
-		// still release focus from whatever had it; otherwise that
-		// widget keeps rendering its own focused-state decoration (e.g.
-		// InputBox's cursor block, drawn unconditionally every frame
-		// while IsFocused is true) indefinitely, with nothing on
-		// screen left to explain why it's still there.
+
+		if target != nil && target.IsEnabled() && target.CanFocus() {
+			// A focusable target: blur whatever else was focused, focus
+			// this one, *then* dispatch — the original, long-tested
+			// order, since a freshly-focused widget's own click
+			// handling (e.g. an InputBox placing its cursor) expects
+			// IsFocused to already be true by the time it runs.
+			for _, f := range w.getFlatFocusables() {
+				if f.HasFocus() && f != target {
+					f.SetFocus(false)
+				}
+			}
+			target.SetFocus(true)
+			w.mouseCapture = target
+			target.HandleEvent(ev)
+			return
+		}
+
+		// target is nil, disabled, or simply not focusable — a Label, a
+		// disabled control, empty window background, or a widget like
+		// diskette's own gutter Copy/Move buttons, whose HandleEvent
+		// itself reads "which sibling currently has focus" to decide
+		// what it does. Dispatch first, while whatever was focused
+		// before this click is *still* focused, then blur it — doing
+		// this in the other order would make any such non-focusable
+		// target's own click handler see focus state this very click
+		// already cleared, which is exactly backwards for a widget
+		// whose behavior depends on it (see TestWindow_
+		// NonFocusableTargetSeesPreClickFocusDuringItsOwnHandleEvent).
+		// A click that lands on nothing, or on something disabled or
+		// non-focusable, must still release focus from whatever had
+		// it once dispatch is done — otherwise that widget keeps
+		// rendering its own focused-state decoration (e.g. InputBox's
+		// cursor block, drawn unconditionally every frame while
+		// IsFocused is true) indefinitely, with nothing on screen left
+		// to explain why it's still there.
+		if target != nil && target.IsEnabled() {
+			w.mouseCapture = target
+			target.HandleEvent(ev)
+		}
 		for _, f := range w.getFlatFocusables() {
 			if f.HasFocus() {
 				f.SetFocus(false)
 			}
-		}
-		if target != nil && target.IsEnabled() {
-			if target.CanFocus() {
-				target.SetFocus(true)
-			}
-			w.mouseCapture = target
-			target.HandleEvent(ev)
 		}
 		return
 	}
