@@ -298,6 +298,60 @@ func TestWindow_EnabledWidgetRespondsToMouseClick(t *testing.T) {
 	}
 }
 
+// Regression: clicking a widget that isn't itself focusable — a Label, an
+// eventSpy with the default IsFocusable=false, a disabled control, empty
+// window background — used to leave whatever was previously focused still
+// marked focused, since the blur loop only ran inside the
+// `if target.CanFocus()` branch. A still-"focused" InputBox keeps drawing
+// its own cursor block every frame regardless of where later clicks land,
+// so this could leave a stray cell rendering indefinitely with nothing
+// left on screen to explain it.
+func TestWindow_ClickingANonFocusableTargetStillBlursThePreviousFocus(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+	input := NewInputBox(0, 0, 20, "")
+	nonFocusable := newEventSpy(0, 2, 5, 1) // default IsFocusable: false
+	win.AddWidget(input)
+	win.AddWidget(nonFocusable)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: input.AbsX, MouseY: input.AbsY})
+	if !input.HasFocus() {
+		t.Fatal("test setup: expected the InputBox to be focused after clicking it")
+	}
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: nonFocusable.AbsX, MouseY: nonFocusable.AbsY})
+	if input.HasFocus() {
+		t.Error("InputBox is still focused after clicking a non-focusable widget — it will keep drawing its cursor block")
+	}
+}
+
+// Regression: same bug, different trigger — a click that hits nothing at
+// all (empty window background) skipped the blur loop entirely too, since
+// it lived inside `if target != nil && ...`.
+func TestWindow_ClickingEmptyBackgroundStillBlursThePreviousFocus(t *testing.T) {
+	win := NewWindow(40, 10, "test")
+	input := NewInputBox(0, 0, 20, "")
+	win.AddWidget(input)
+
+	c := NewCanvas()
+	c.Resize(80, 24)
+	win.Draw(c)
+
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: input.AbsX, MouseY: input.AbsY})
+	if !input.HasFocus() {
+		t.Fatal("test setup: expected the InputBox to be focused after clicking it")
+	}
+
+	// Deliberately click a point nothing in the window occupies.
+	win.HandleEvent(Event{Type: EventMouseDown, MouseX: input.AbsX + 60, MouseY: input.AbsY + 15})
+	if input.HasFocus() {
+		t.Error("InputBox is still focused after a click that hit nothing — it will keep drawing its cursor block")
+	}
+}
+
 func TestButton_DefaultIdleColorIsThemeBgWidget(t *testing.T) {
 	btn := NewButton(0, 0, "OK", BtnDefault, nil)
 	c := NewCanvas()

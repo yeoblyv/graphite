@@ -190,13 +190,23 @@ func (w *Window) HandleEvent(ev Event) {
 		walk(w.Children)
 
 		w.mouseCapture = nil
+		// Blur whatever currently has focus before deciding whether the
+		// click's own target takes it over — unconditionally, not just
+		// when target.CanFocus(). A click that lands on nothing (target
+		// == nil), or on something that isn't itself focusable (a
+		// Label, a disabled control, empty window background), must
+		// still release focus from whatever had it; otherwise that
+		// widget keeps rendering its own focused-state decoration (e.g.
+		// InputBox's cursor block, drawn unconditionally every frame
+		// while IsFocused is true) indefinitely, with nothing on
+		// screen left to explain why it's still there.
+		for _, f := range w.getFlatFocusables() {
+			if f.HasFocus() {
+				f.SetFocus(false)
+			}
+		}
 		if target != nil && target.IsEnabled() {
 			if target.CanFocus() {
-				for _, f := range w.getFlatFocusables() {
-					if f.HasFocus() {
-						f.SetFocus(false)
-					}
-				}
 				target.SetFocus(true)
 			}
 			w.mouseCapture = target
