@@ -790,7 +790,7 @@ func (cb *ComboBox) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 
 	bg, fg := c.theme.BgWidget, c.theme.FgWindow
 	if cb.IsFocused {
-		bg = c.theme.BgFocused
+		bg, fg = c.theme.BgFocused, c.theme.BgFocused.ContrastText()
 	}
 
 	for ix := 0; ix < cb.LastW; ix++ {
@@ -830,14 +830,14 @@ func (cb *ComboBox) DrawOverlay(c *Canvas, offX, offY, pW, pH int) {
 
 		idx := iy // Note: no scrolling implemented yet for >5 items, just show first 5
 		if idx < len(cb.Items) {
-			ibg := bg
+			ibg, ifg := bg, fg
 			if ix := cb.Selected; ix == idx {
-				ibg = c.theme.Primary
+				ibg, ifg = c.theme.Primary, c.theme.Primary.ContrastText()
 				for ix2 := 0; ix2 < cb.LastW; ix2++ {
-					c.DrawCell(cb.AbsX+ix2, cb.AbsY+1+iy, " ", ibg, fg)
+					c.DrawCell(cb.AbsX+ix2, cb.AbsY+1+iy, " ", ibg, ifg)
 				}
 			}
-			c.DrawTextBounded(cb.AbsX+1, cb.AbsY+1+iy, cb.LastW-2, cb.Items[idx], ibg, fg)
+			c.DrawTextBounded(cb.AbsX+1, cb.AbsY+1+iy, cb.LastW-2, cb.Items[idx], ibg, ifg)
 		}
 	}
 }
