@@ -199,15 +199,57 @@ func openNestedModal(app *Graphite.Application, depth int) {
 	app.SetModal(mod)
 }
 
-// buildModalsTab demonstrates ShowMessage and the nested modal stack.
+// showcaseLocales pairs every Graphite.Locale the library ships a prepared
+// Catalog for with a human-readable name, in the same order shown in the
+// Modals tab's language ComboBox.
+var showcaseLocales = []struct {
+	name   string
+	locale Graphite.Locale
+}{
+	{"English", Graphite.LocaleEnglish},
+	{"Українська", Graphite.LocaleUkrainian},
+	{"Русский", Graphite.LocaleRussian},
+	{"Deutsch", Graphite.LocaleGerman},
+	{"Français", Graphite.LocaleFrench},
+	{"Español", Graphite.LocaleSpanish},
+	{"Português", Graphite.LocalePortuguese},
+	{"Italiano", Graphite.LocaleItalian},
+	{"Polski", Graphite.LocalePolish},
+	{"Nederlands", Graphite.LocaleDutch},
+	{"Türkçe", Graphite.LocaleTurkish},
+	{"Čeština", Graphite.LocaleCzech},
+	{"日本語", Graphite.LocaleJapanese},
+	{"中文", Graphite.LocaleChinese},
+	{"한국어", Graphite.LocaleKorean},
+}
+
+// buildModalsTab demonstrates ShowMessage, ShowConfirm, ShowTextEditor, the
+// nested modal stack, and — via the language ComboBox — how Application.T
+// re-translates every one of them once SetLocale changes app's Locale.
 func buildModalsTab(app *Graphite.Application) []Graphite.Widget {
 	panel := Graphite.NewPanel(0, 2, 0, 0)
 	panel.SetPercentLayout(0, 0, 100, 90)
 	panel.AddWidget(Graphite.NewLabel(0, 0, "Modal windows stack — open several and close them one at a time."))
-	panel.AddWidget(Graphite.NewButton(0, 2, "Show A Message", Graphite.BtnDefault, func() {
+
+	names := make([]string, len(showcaseLocales))
+	for i, l := range showcaseLocales {
+		names[i] = l.name
+	}
+	panel.AddWidget(Graphite.NewLabel(0, 2, "Dialog language:"))
+	panel.AddWidget(Graphite.NewComboBox(18, 2, 16, names, func(idx int, _ string) {
+		app.SetLocale(showcaseLocales[idx].locale)
+	}))
+
+	panel.AddWidget(Graphite.NewButton(0, 4, "Show A Message", Graphite.BtnDefault, func() {
 		app.ShowMessage(" Notice ", "This is a simple single modal dialog.", Graphite.BtnDefault)
 	}))
-	panel.AddWidget(Graphite.NewButton(0, 4, "Open Nested Modals", Graphite.BtnSuccess, func() {
+	panel.AddWidget(Graphite.NewButton(0, 6, "Ask For Confirmation", Graphite.BtnDanger, func() {
+		Graphite.ShowConfirm(app, " Delete ", "Delete this item?", Graphite.BtnDanger, func() {})
+	}))
+	panel.AddWidget(Graphite.NewButton(0, 8, "Rename Something", Graphite.BtnDefault, func() {
+		Graphite.ShowTextEditor(app, " Rename ", "New name:", "example.txt", func(string) {})
+	}))
+	panel.AddWidget(Graphite.NewButton(0, 10, "Open Nested Modals", Graphite.BtnSuccess, func() {
 		openNestedModal(app, 1)
 	}))
 	return []Graphite.Widget{panel}

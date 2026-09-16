@@ -25,11 +25,11 @@ func ShowConfirm(app *Application, title, message string, style ButtonStyle, onC
 	// the button's LastH at 0, making it focusable and Enter-submittable
 	// but never clickable (HitTest requires LastH > 0). An anchor
 	// relative to the actual offered content height can't drift this way.
-	mod.AddWidget(NewButton(4, -2, "Yes", style, func() {
+	mod.AddWidget(NewButton(4, -2, app.T(KeyYes), style, func() {
 		app.CloseModal()
 		onConfirm()
 	}))
-	mod.AddWidget(NewButton(14, -2, "No", BtnDefault, func() {
+	mod.AddWidget(NewButton(14, -2, app.T(KeyNo), BtnDefault, func() {
 		app.CloseModal()
 	}))
 	app.SetModal(mod)
@@ -62,7 +62,7 @@ func ShowTextEditor(app *Application, title, label, current string, onConfirm fu
 
 	confirm := func(val string) {
 		if strings.TrimSpace(val) == "" {
-			errLbl.SetText("Value cannot be empty.")
+			errLbl.SetText(app.T(KeyValueRequired))
 			return
 		}
 		app.CloseModal()
@@ -70,10 +70,10 @@ func ShowTextEditor(app *Application, title, label, current string, onConfirm fu
 	}
 	input.OnSubmit = confirm
 
-	mod.AddWidget(NewButton(2, 7, "OK", BtnSuccess, func() {
+	mod.AddWidget(NewButton(2, 7, app.T(KeyOK), BtnSuccess, func() {
 		confirm(input.Value)
 	}))
-	mod.AddWidget(NewButton(14, 7, "Cancel", BtnDefault, func() {
+	mod.AddWidget(NewButton(14, 7, app.T(KeyCancel), BtnDefault, func() {
 		app.CloseModal()
 	}))
 

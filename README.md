@@ -12,7 +12,9 @@ layout container, and a set of ready-made widgets (labels, buttons,
 checkboxes, input boxes, text areas, list boxes, todo lists, tabs, progress
 bars, panels for layout, modal windows, a mixing-console `Fader`, and a
 playable `PianoRoll` keyboard with real MIDI and audio companion
-packages).
+packages). The library's own dialogs, file picker, and value editor ship
+with [prepared translations](docs/i18n.md) into 15 languages, and any
+program built with it can register translations of its own.
 
 ## Quickstart
 
@@ -63,6 +65,7 @@ Full documentation lives in [`docs/`](docs/getting-started.md):
 | [Fader](docs/fader.md) | The channel-strip mixer control, in depth |
 | [PianoRoll](docs/pianoroll.md) | The playable piano keyboard, plus the `graphite/audio` and `graphite/midi` companion packages for real sound and real MIDI hardware |
 | [Modals](docs/modals.md) | The modal stack, `ShowMessage`, `ShowValueEditor`, `ShowFilePicker` |
+| [Internationalization](docs/i18n.md) | `Locale`, `Application.T`, prepared translations, and adding your own language |
 | [Images](docs/images.md) | The GPH pseudographics image format and the `Image` widget |
 | [Custom widgets](docs/custom-widgets.md) | Building your own widget by embedding `BaseWidget` |
 | [Windows terminal notes](docs/windows-terminal.md) | The `conhost.exe` virtual-terminal-processing fix, and why it's needed |

@@ -6,6 +6,11 @@ modal stack itself and the five modal dialogs the library ships:
 `ShowMessage`, `ShowConfirm`, `ShowValueEditor`, `ShowTextEditor`, and
 `ShowFilePicker`.
 
+Every button label and static string these five dialogs draw is resolved
+against `app`'s current `Locale`, not hardcoded — see
+[i18n.md](i18n.md) for the full list of translated strings, the 15
+prepared languages, and how to add your own.
+
 ## The modal stack
 
 ```go

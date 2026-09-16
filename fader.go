@@ -438,7 +438,7 @@ func ShowValueEditor(app *Application, title string, current, min, max float64, 
 	// clamp then caps the button's LastH at 0, making it focusable and
 	// Enter-submittable but never clickable (HitTest requires LastH > 0).
 	mod := NewWindow(44, 12, " "+title+" ")
-	mod.AddWidget(NewLabel(2, 1, fmt.Sprintf("Value (%g-%g):", min, max)))
+	mod.AddWidget(NewLabel(2, 1, app.T(KeyValuePrompt, min, max)))
 
 	input := NewInputBox(2, 3, 30, "")
 	input.Value = fmt.Sprintf("%.1f", current)
@@ -451,7 +451,7 @@ func ShowValueEditor(app *Application, title string, current, min, max float64, 
 	confirm := func(valStr string) {
 		v, err := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
 		if err != nil || v < min || v > max {
-			errLbl.SetText(fmt.Sprintf("Enter a number between %g and %g.", min, max))
+			errLbl.SetText(app.T(KeyValueRangeError, min, max))
 			return
 		}
 		app.CloseModal()
@@ -460,10 +460,10 @@ func ShowValueEditor(app *Application, title string, current, min, max float64, 
 
 	input.OnSubmit = confirm
 
-	mod.AddWidget(NewButton(2, 7, "OK", BtnSuccess, func() {
+	mod.AddWidget(NewButton(2, 7, app.T(KeyOK), BtnSuccess, func() {
 		confirm(input.Value)
 	}))
-	mod.AddWidget(NewButton(14, 7, "Cancel", BtnDefault, func() {
+	mod.AddWidget(NewButton(14, 7, app.T(KeyCancel), BtnDefault, func() {
 		app.CloseModal()
 	}))
 

@@ -17,7 +17,7 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 		dir = "."
 	}
 
-	mod := NewWindow(0, 0, " Open ")
+	mod := NewWindow(0, 0, " "+app.T(KeyOpen)+" ")
 	mod.SetPercentSize(90, 90)
 
 	var history []string
@@ -49,7 +49,7 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 	})
 	mod.AddWidget(upBtn)
 
-	pathInput := NewInputBox(20, 1, -2, "Dir: ")
+	pathInput := NewInputBox(20, 1, -2, app.T(KeyDirLabel))
 	pathInput.Value = dir
 	pathInput.CursorPos = len([]rune(dir))
 	mod.AddWidget(pathInput)
@@ -103,10 +103,10 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 	var entries []os.DirEntry
 	var displayItems []string
 
-	fileNameInput := NewInputBox(2, -2, -46, "File name: ")
+	fileNameInput := NewInputBox(2, -2, -46, app.T(KeyFileNameLabel))
 	mod.AddWidget(fileNameInput)
 
-	filters := []string{"All Files (*.*)", "GPH Files (*.gph)", "Image Files (*.jpg, *.png, *.jpeg)", "Video Files (*.mp4, *.avi, *.mkv)"}
+	filters := []string{app.T(KeyFilterAll), app.T(KeyFilterGph), app.T(KeyFilterImage), app.T(KeyFilterVideo)}
 	filterBox := NewComboBox(-44, -2, 22, filters, func(idx int, item string) {
 		loadDir(dir, false)
 	})
@@ -192,9 +192,9 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 				nameW = 10
 			}
 
-			headerLbl.SetText("  " + padRight("Name", nameW) + " " + padRight("Date Modified", dateW) + " " + padRight("Type", typeW) + " " + padLeft("Size", sizeW))
+			headerLbl.SetText("  " + padRight(app.T(KeyColumnName), nameW) + " " + padRight(app.T(KeyColumnDate), dateW) + " " + padRight(app.T(KeyColumnType), typeW) + " " + padLeft(app.T(KeyColumnSize), sizeW))
 
-			headerLbl.SetText("  " + padRight("Name", nameW) + " " + padRight("Date Modified", dateW) + " " + padRight("Type", typeW) + " " + padLeft("Size", sizeW))
+			headerLbl.SetText("  " + padRight(app.T(KeyColumnName), nameW) + " " + padRight(app.T(KeyColumnDate), dateW) + " " + padRight(app.T(KeyColumnType), typeW) + " " + padLeft(app.T(KeyColumnSize), sizeW))
 
 			for _, e := range dirs {
 				entries = append(entries, e)
@@ -204,7 +204,7 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 					dateStr = info.ModTime().Format("02.01.2006 15:04")
 				}
 				name := "/" + e.Name()
-				displayItems = append(displayItems, padRight(name, nameW)+" "+padRight(dateStr, dateW)+" "+padRight("File folder", typeW)+" "+padLeft("", sizeW))
+				displayItems = append(displayItems, padRight(name, nameW)+" "+padRight(dateStr, dateW)+" "+padRight(app.T(KeyFileFolder), typeW)+" "+padLeft("", sizeW))
 			}
 			for _, e := range files {
 				entries = append(entries, e)
@@ -217,9 +217,9 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 				}
 				ext := filepath.Ext(e.Name())
 				if len(ext) > 0 {
-					ext = ext[1:] + " File"
+					ext = ext[1:] + " " + app.T(KeyFileGeneric)
 				} else {
-					ext = "File"
+					ext = app.T(KeyFileGeneric)
 				}
 				displayItems = append(displayItems, padRight(e.Name(), nameW)+" "+padRight(dateStr, dateW)+" "+padRight(ext, typeW)+" "+padLeft(sizeStr, sizeW))
 			}
@@ -295,14 +295,14 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 		}
 	}
 
-	mod.AddWidget(NewButton(-20, -2, "Open", BtnSuccess, func() {
+	mod.AddWidget(NewButton(-20, -2, app.T(KeyOpen), BtnSuccess, func() {
 		if fileNameInput.Value != "" {
 			app.CloseModal()
 			onSelect(filepath.Join(dir, fileNameInput.Value))
 		}
 	}))
 
-	mod.AddWidget(NewButton(-10, -2, "Cancel", BtnDefault, func() {
+	mod.AddWidget(NewButton(-10, -2, app.T(KeyCancel), BtnDefault, func() {
 		app.CloseModal()
 	}))
 

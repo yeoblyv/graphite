@@ -30,6 +30,23 @@ Baseline for the first public release.
 
 ### Added
 
+- Internationalization: `Application.T` resolves every string the
+  library's own `ShowMessage`/`ShowConfirm`/`ShowTextEditor`/
+  `ShowValueEditor`/`ShowFilePicker` dialogs draw against `Application`'s
+  current `Locale` (`SetLocale`, default `LocaleEnglish`), with a prepared
+  `Catalog` shipped for 15 languages (English, Ukrainian, Russian, German,
+  French, Spanish, Portuguese, Italian, Polish, Dutch, Turkish, Czech,
+  Japanese, Chinese, Korean). The same `Locale`/`Catalog`/`T` mechanism is
+  a general-purpose key-to-text standard a program uses to translate its
+  own UI, not just the library's: `Application.SetTranslations` merges a
+  `Catalog` into a locale's dictionary (repeated calls add to it rather
+  than replacing it, so a translation can be built up incrementally), and
+  `Catalog.Merge` composes several Go-native `Catalog` values (e.g. one
+  per file under a project's own `locales` package) into one — every
+  translation is a plain Go value compiled into the binary, so a duplicate
+  or misspelled key is a `go build`/`go vet` failure rather than something
+  discovered at runtime, and nothing needs shipping or loading from disk
+  alongside the executable. See [docs/i18n.md](docs/i18n.md).
 - `InputBox.Masked` (and the `NewPasswordBox` constructor that sets it), for
   a password/passphrase field: every character of `Value` renders as `•`
   instead of itself, and `Ctrl+C`/`Ctrl+X` never put the real value on the

@@ -26,17 +26,23 @@ type Application struct {
 	idleCallback    func()
 	onQuitRequested func()
 
+	locale   Locale
+	catalogs map[Locale]Catalog
+
 	invokeMu    sync.Mutex
 	invokeQueue []func()
 }
 
 // NewApplication creates an Application with an empty canvas using
-// DefaultTheme. Call SetTheme afterwards to customize colors.
+// DefaultTheme and LocaleEnglish. Call SetTheme to customize colors, or
+// SetLocale to change the language used by the library's own built-in
+// dialogs, file picker, and value editor (see T).
 func NewApplication() *Application {
 	return &Application{
 		canvas:  NewCanvas(),
 		term:    newTerminal(),
 		running: true,
+		locale:  LocaleEnglish,
 	}
 }
 
@@ -95,7 +101,7 @@ func (app *Application) ShowMessage(title, message string, style ButtonStyle) {
 
 	mod := NewWindow(50, winH, " "+title+" ")
 	mod.AddWidget(NewLabel(4, 2, message))
-	btn := NewButton(20, winH-3, "OK", style, func() {
+	btn := NewButton(20, winH-3, app.T(KeyOK), style, func() {
 		app.CloseModal()
 	})
 	mod.AddWidget(btn)
