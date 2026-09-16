@@ -48,6 +48,22 @@ func (w *Window) ClearMouseCapture() {
 	w.mouseCapture = nil
 }
 
+// ClearFocus blurs whichever widget in this window currently has keyboard
+// focus, if any. Call it on a window/modal that's about to be covered by a
+// new one opening on top of it — otherwise a still-focused widget with its
+// own focused-state decoration (e.g. InputBox's cursor block, drawn
+// unconditionally every frame while IsFocused is true) keeps rendering
+// that decoration underneath the new modal, since nothing else about
+// opening a modal touches the widget it steals input from. Application.
+// SetModal calls this the same way it already calls ClearMouseCapture, for
+// the same underlying reason: input routing moves to the new modal, but a
+// widget's own visual state doesn't know that on its own.
+func (w *Window) ClearFocus() {
+	if f := w.focusedWidget(); f != nil {
+		f.SetFocus(false)
+	}
+}
+
 // HasMouseCapture reports whether a mouse gesture is still in flight —
 // EventMouseDown has hit some widget but the matching EventMouseUp
 // hasn't arrived yet. Application.Run checks this before switching a

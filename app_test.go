@@ -153,6 +153,36 @@ func TestApplication_ModalStack(t *testing.T) {
 	app.CloseModal()
 }
 
+// TestApplication_SetModalBlursTheLayerUnderneath reproduces a real bug: a
+// focused InputBox draws its own cursor block unconditionally every frame
+// while IsFocused is true (see widgets.go's InputBox.DrawRelative), and
+// nothing about opening a new modal on top of it used to change that —
+// input routing moved to the new modal, but the InputBox one layer down
+// kept believing it was still focused and kept drawing its cursor, which
+// could land inside the new modal's own bounds depending on layout/
+// terminal width. SetModal must blur whatever was focused one layer down,
+// the same way it already clears mouse capture there.
+func TestApplication_SetModalBlursTheLayerUnderneath(t *testing.T) {
+	app := NewApplication()
+
+	first := NewWindow(40, 10, "first")
+	input := NewInputBox(2, 2, 20, "")
+	first.AddWidget(input)
+	input.SetFocus(true)
+
+	app.SetModal(first)
+	if !input.HasFocus() {
+		t.Fatal("test setup: expected input to be focused after opening the first modal")
+	}
+
+	second := NewWindow(40, 10, "second")
+	app.SetModal(second)
+
+	if input.HasFocus() {
+		t.Error("InputBox from the first modal is still focused after a second modal opened on top of it — it will keep drawing its cursor block underneath the new modal")
+	}
+}
+
 func TestCanvas_DefaultTheme(t *testing.T) {
 	c := NewCanvas()
 	if c.theme != DefaultTheme() {

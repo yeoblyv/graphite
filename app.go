@@ -114,13 +114,20 @@ func (app *Application) SetWindow(win *Window) {
 }
 
 // SetModal opens mod on top of the current modal stack, leaving any
-// already-open modal in place beneath it.
+// already-open modal in place beneath it. Also blurs whatever widget
+// currently has keyboard focus one layer down (see Window.ClearFocus) —
+// exactly one of activeWindow or the current top modal actually has a
+// focused widget at any moment, so clearing all of them unconditionally
+// is simpler than tracking which layer that is, the same reasoning
+// ClearMouseCapture below it already follows.
 func (app *Application) SetModal(mod *Window) {
 	if app.activeWindow != nil {
 		app.activeWindow.ClearMouseCapture()
+		app.activeWindow.ClearFocus()
 	}
 	for _, m := range app.modalStack {
 		m.ClearMouseCapture()
+		m.ClearFocus()
 	}
 	app.modalStack = append(app.modalStack, mod)
 }
