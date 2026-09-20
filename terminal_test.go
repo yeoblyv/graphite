@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
+	skipIfWindowsConPTYOutputIsBroken(t)
 	shell, runFlag := testShell()
 	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, []string{runFlag, "echo hi"})
 	if err != nil {
@@ -34,6 +35,7 @@ func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
 }
 
 func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
+	skipIfWindowsConPTYOutputIsBroken(t)
 	shell, _ := testShell()
 	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, nil)
 	if err != nil {
@@ -69,6 +71,11 @@ func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
 }
 
 func TestTerminal_ExitedReportsAfterTheChildExits(t *testing.T) {
+	// Exited() flips true only when readLoop's pty.Read finally returns
+	// an error, i.e. the same broken-on-Windows EOF-on-exit signal
+	// skipIfWindowsConPTYOutputIsBroken documents, even though this test
+	// never inspects output text itself.
+	skipIfWindowsConPTYOutputIsBroken(t)
 	shell, runFlag := testShell()
 	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, []string{runFlag, "exit 0"})
 	if err != nil {

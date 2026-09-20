@@ -47,6 +47,7 @@ func readUntil(pty ptySession, want string, timeout time.Duration) (got string, 
 }
 
 func TestStartPTY_RunsACommandAndReturnsItsOutput(t *testing.T) {
+	skipIfWindowsConPTYOutputIsBroken(t)
 	shell, runFlag := testShell()
 	pty, err := startPTY(shell, []string{runFlag, "echo hello-pty"}, 80, 24)
 	if err != nil {
