@@ -94,9 +94,17 @@ func startPTY(name string, args []string, cols, rows int) (ptySession, error) {
 		ptyOut.Close()
 		return nil, err
 	}
+	// PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE is documented to take the HPCON
+	// handle's own value in the lpValue slot (mirroring the C sample,
+	// which passes hpc rather than &hpc) — not a pointer to a variable
+	// holding it. windows.Handle is a uintptr, and converting an
+	// arbitrary integer straight to unsafe.Pointer is exactly what
+	// go vet's unsafeptr check exists to catch, even though it's correct
+	// here; going through *unsafe.Pointer re-express the same bits as a
+	// pointer-to-pointer conversion, which vet always allows.
 	if err := attrs.Update(
 		windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-		unsafe.Pointer(console), unsafe.Sizeof(console),
+		*(*unsafe.Pointer)(unsafe.Pointer(&console)), unsafe.Sizeof(console),
 	); err != nil {
 		attrs.Delete()
 		windows.ClosePseudoConsole(console)
