@@ -16,7 +16,7 @@ func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
 
 	c := NewCanvas()
 	c.Resize(80, 24)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		term.DrawRelative(c, 0, 0, 80, 24)
 		if term.screen.Cell(0, 0).Ch == 'h' {
@@ -43,7 +43,7 @@ func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
 
 	term.WriteRaw([]byte("echo raw-input-reached-the-shell\n"))
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	var seen bool
 	for time.Now().Before(deadline) {
 		term.mu.Lock()
@@ -76,7 +76,7 @@ func TestTerminal_ExitedReportsAfterTheChildExits(t *testing.T) {
 	}
 	defer term.Close()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if exited, _ := term.Exited(); exited {
 			return

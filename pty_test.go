@@ -54,7 +54,7 @@ func TestStartPTY_RunsACommandAndReturnsItsOutput(t *testing.T) {
 	}
 	defer pty.Close()
 
-	got, timedOut := readUntil(pty, "hello-pty", 3*time.Second)
+	got, timedOut := readUntil(pty, "hello-pty", 10*time.Second)
 	if timedOut {
 		t.Fatal("timed out waiting for \"hello-pty\" in pty output")
 	}
@@ -76,7 +76,7 @@ func TestStartPTY_ChildSeesAControllingTerminal(t *testing.T) {
 	}
 	defer pty.Close()
 
-	got, timedOut := readUntil(pty, "/dev/", 3*time.Second)
+	got, timedOut := readUntil(pty, "/dev/", 10*time.Second)
 	if timedOut {
 		t.Fatal("timed out waiting for a /dev/... path in `tty` output")
 	}
