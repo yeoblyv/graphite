@@ -1,13 +1,15 @@
 package Graphite
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestStartPTY_RunsACommandAndReturnsItsOutput(t *testing.T) {
-	pty, err := startPTY("/bin/sh", []string{"-c", "echo hello-pty"}, 80, 24)
+	shell, runFlag := testShell()
+	pty, err := startPTY(shell, []string{runFlag, "echo hello-pty"}, 80, 24)
 	if err != nil {
 		t.Fatalf("startPTY: %v", err)
 	}
@@ -35,6 +37,9 @@ func TestStartPTY_RunsACommandAndReturnsItsOutput(t *testing.T) {
 }
 
 func TestStartPTY_ChildSeesAControllingTerminal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no POSIX controlling-terminal/tty concept under ConPTY")
+	}
 	// A shell run without a controlling terminal can't do this; `tty`
 	// prints the device path (e.g. /dev/ttys003 or /dev/pts/4) only when
 	// stdin actually is one.
@@ -66,7 +71,8 @@ func TestStartPTY_ChildSeesAControllingTerminal(t *testing.T) {
 }
 
 func TestStartPTY_ResizeSucceeds(t *testing.T) {
-	pty, err := startPTY("/bin/sh", []string{"-c", "sleep 1"}, 80, 24)
+	shell, runFlag := testShell()
+	pty, err := startPTY(shell, []string{runFlag, testSleepOneSecond()}, 80, 24)
 	if err != nil {
 		t.Fatalf("startPTY: %v", err)
 	}

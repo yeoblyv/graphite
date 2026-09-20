@@ -7,7 +7,8 @@ import (
 )
 
 func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 40, 10, "/bin/sh", []string{"-c", "echo hi"})
+	shell, runFlag := testShell()
+	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, []string{runFlag, "echo hi"})
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}
@@ -33,7 +34,8 @@ func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
 }
 
 func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 40, 10, "/bin/sh", nil)
+	shell, _ := testShell()
+	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, nil)
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}
@@ -67,7 +69,8 @@ func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
 }
 
 func TestTerminal_ExitedReportsAfterTheChildExits(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 40, 10, "/bin/sh", []string{"-c", "exit 0"})
+	shell, runFlag := testShell()
+	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, []string{runFlag, "exit 0"})
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}
@@ -84,7 +87,8 @@ func TestTerminal_ExitedReportsAfterTheChildExits(t *testing.T) {
 }
 
 func TestTerminal_ImplementsRawInputReceiver(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 10, 5, "/bin/sh", nil)
+	shell, _ := testShell()
+	term, err := NewTerminal(nil, 0, 0, 10, 5, shell, nil)
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}
