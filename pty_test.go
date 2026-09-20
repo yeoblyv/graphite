@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// readUntil reads from pty in a background goroutine — which the caller
+// never waits on — until want appears in the accumulated output or the
+// pty returns an error, then sends the accumulated text once. Unlike a
+// synchronous read loop gated by a deadline check between calls, this
+// survives a Read that blocks past the deadline: on Windows, ConPTY's
+// output pipe doesn't signal EOF when the child exits, only when the
+// pseudoconsole itself closes (see pty.Close()), so a bare blocking Read
+// after the child's done can hang indefinitely — exactly what
+// Terminal.readLoop() already sidesteps by running in its own goroutine
+// the caller doesn't join either.
+func readUntil(pty ptySession, want string, timeout time.Duration) (got string, timedOut bool) {
+	done := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		var sb strings.Builder
+		for {
+			n, err := pty.Read(buf)
+			if n > 0 {
+				sb.Write(buf[:n])
+				if strings.Contains(sb.String(), want) {
+					done <- sb.String()
+					return
+				}
+			}
+			if err != nil {
+				done <- sb.String()
+				return
+			}
+		}
+	}()
+
+	select {
+	case out := <-done:
+		return out, false
+	case <-time.After(timeout):
+		return "", true
+	}
+}
+
 func TestStartPTY_RunsACommandAndReturnsItsOutput(t *testing.T) {
 	shell, runFlag := testShell()
 	pty, err := startPTY(shell, []string{runFlag, "echo hello-pty"}, 80, 24)
@@ -15,24 +54,12 @@ func TestStartPTY_RunsACommandAndReturnsItsOutput(t *testing.T) {
 	}
 	defer pty.Close()
 
-	buf := make([]byte, 4096)
-	var got strings.Builder
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		n, err := pty.Read(buf)
-		if n > 0 {
-			got.Write(buf[:n])
-		}
-		if strings.Contains(got.String(), "hello-pty") {
-			break
-		}
-		if err != nil {
-			break
-		}
+	got, timedOut := readUntil(pty, "hello-pty", 3*time.Second)
+	if timedOut {
+		t.Fatal("timed out waiting for \"hello-pty\" in pty output")
 	}
-
-	if !strings.Contains(got.String(), "hello-pty") {
-		t.Fatalf("pty output = %q, want it to contain \"hello-pty\"", got.String())
+	if !strings.Contains(got, "hello-pty") {
+		t.Fatalf("pty output = %q, want it to contain \"hello-pty\"", got)
 	}
 }
 
@@ -49,24 +76,12 @@ func TestStartPTY_ChildSeesAControllingTerminal(t *testing.T) {
 	}
 	defer pty.Close()
 
-	buf := make([]byte, 4096)
-	var got strings.Builder
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		n, err := pty.Read(buf)
-		if n > 0 {
-			got.Write(buf[:n])
-		}
-		if err != nil {
-			break
-		}
-		if strings.Contains(got.String(), "/dev/") {
-			break
-		}
+	got, timedOut := readUntil(pty, "/dev/", 3*time.Second)
+	if timedOut {
+		t.Fatal("timed out waiting for a /dev/... path in `tty` output")
 	}
-
-	if !strings.Contains(got.String(), "/dev/") {
-		t.Fatalf("`tty` output = %q, want a /dev/... path (i.e. a real controlling terminal)", got.String())
+	if !strings.Contains(got, "/dev/") {
+		t.Fatalf("`tty` output = %q, want a /dev/... path (i.e. a real controlling terminal)", got)
 	}
 }
 
