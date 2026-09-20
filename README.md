@@ -19,7 +19,7 @@ program built with it can register translations of its own.
 ## Quickstart
 
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/yeoblyv/graphite.git
 cd graphite
 go run ./showcase   # every widget, Flex layout, and a custom theme in one window
 go run ./gphedit     # a GPH image editor/converter built with Graphite

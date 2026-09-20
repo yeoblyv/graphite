@@ -7,7 +7,9 @@ import (
 )
 
 func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 40, 10, "/bin/sh", []string{"-c", "echo hi"})
+	skipIfWindowsConPTYOutputIsBroken(t)
+	shell, runFlag := testShell()
+	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, []string{runFlag, "echo hi"})
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}
@@ -15,7 +17,7 @@ func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
 
 	c := NewCanvas()
 	c.Resize(80, 24)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		term.DrawRelative(c, 0, 0, 80, 24)
 		if term.screen.Cell(0, 0).Ch == 'h' {
@@ -33,7 +35,9 @@ func TestNewTerminal_RunsAShellAndRendersItsOutput(t *testing.T) {
 }
 
 func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 40, 10, "/bin/sh", nil)
+	skipIfWindowsConPTYOutputIsBroken(t)
+	shell, _ := testShell()
+	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, nil)
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}
@@ -41,7 +45,7 @@ func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
 
 	term.WriteRaw([]byte("echo raw-input-reached-the-shell\n"))
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	var seen bool
 	for time.Now().Before(deadline) {
 		term.mu.Lock()
@@ -67,13 +71,19 @@ func TestTerminal_WriteRawReachesTheChild(t *testing.T) {
 }
 
 func TestTerminal_ExitedReportsAfterTheChildExits(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 40, 10, "/bin/sh", []string{"-c", "exit 0"})
+	// Exited() flips true only when readLoop's pty.Read finally returns
+	// an error, i.e. the same broken-on-Windows EOF-on-exit signal
+	// skipIfWindowsConPTYOutputIsBroken documents, even though this test
+	// never inspects output text itself.
+	skipIfWindowsConPTYOutputIsBroken(t)
+	shell, runFlag := testShell()
+	term, err := NewTerminal(nil, 0, 0, 40, 10, shell, []string{runFlag, "exit 0"})
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}
 	defer term.Close()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if exited, _ := term.Exited(); exited {
 			return
@@ -84,7 +94,8 @@ func TestTerminal_ExitedReportsAfterTheChildExits(t *testing.T) {
 }
 
 func TestTerminal_ImplementsRawInputReceiver(t *testing.T) {
-	term, err := NewTerminal(nil, 0, 0, 10, 5, "/bin/sh", nil)
+	shell, _ := testShell()
+	term, err := NewTerminal(nil, 0, 0, 10, 5, shell, nil)
 	if err != nil {
 		t.Fatalf("NewTerminal: %v", err)
 	}

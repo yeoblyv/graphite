@@ -86,7 +86,12 @@ func openPTYPair() (master *os.File, slavePath string, err error) {
 	}
 
 	fd := int(master.Fd())
-	if err := unix.IoctlSetInt(fd, unix.TIOCSPTLCK, 0); err != nil {
+	// TIOCSPTLCK takes an int* the kernel reads the lock flag from
+	// (get_user, not the value passed directly) — IoctlSetInt hands the
+	// kernel the raw value as if it were a pointer, which faults on any
+	// value other than a coincidentally-mapped address. IoctlSetPointerInt
+	// is the one that actually takes its argument's address.
+	if err := unix.IoctlSetPointerInt(fd, unix.TIOCSPTLCK, 0); err != nil {
 		master.Close()
 		return nil, "", fmt.Errorf("unlock pty: %w", err)
 	}
