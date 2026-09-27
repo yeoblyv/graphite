@@ -165,6 +165,34 @@ If your container also needs `DrawOverlay` propagation for its children
 correctly), forward that too, the same way `Panel` and `GroupBox` do —
 see their source for the two-line pattern.
 
+## A modal-wide shortcut: `Window.PreDispatch`
+
+A widget's own `HandleEvent` only ever sees events routed to *it*
+specifically — focus-follows-keyboard for key events, hit-testing for
+mouse ones. That's the wrong shape for a shortcut that should fire
+regardless of which child currently has focus (e.g. `Ctrl+L` jumping focus
+to a specific field from anywhere in the modal, the way `ShowFilePicker`
+does). `Window.PreDispatch`, if set, is checked first by `HandleEvent`,
+before any of its normal routing runs:
+
+```go
+mod := Graphite.NewWindow(60, 20, "My dialog")
+mod.PreDispatch = func(ev Graphite.Event) bool {
+	if ev.Type == Graphite.EventKey && ev.Key == Graphite.KeyCtrlL {
+		someInput.SetFocus(true)
+		return true // claimed — normal dispatch for this event stops here
+	}
+	return false // not our concern; let Window handle it as usual
+}
+```
+
+Return `true` only for an event you're actually claiming — returning `true`
+unconditionally would make every other key, click, and scroll in the modal
+silently do nothing. See `filepicker.go`'s own `PreDispatch` for a fuller
+example (it also has to check whether a text field is currently focused
+before claiming `Backspace`, so it doesn't steal a keystroke the field
+itself needs to edit its own text).
+
 ## Checklist
 
 - [ ] Embed `Graphite.BaseWidget` (not a pointer — `BaseWidget` is

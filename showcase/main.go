@@ -369,6 +369,7 @@ func buildImageTab(theme Graphite.Theme, app *Graphite.Application) []Graphite.W
 					Bg:    bg,
 					Fg:    fg,
 					Level: level,
+					Alpha: 255,
 				}
 			}
 		}
@@ -411,6 +412,63 @@ func buildImageTab(theme Graphite.Theme, app *Graphite.Application) []Graphite.W
 	return []Graphite.Widget{panel}
 }
 
+// buildTreeTab demonstrates TreeView with a small synthetic, lazily-loaded
+// hierarchy standing in for a real file manager's directory tree (see
+// LoadChildren's doc comment in docs/widgets.md) — each folder's children
+// are generated only the first time it's expanded, not all up front.
+func buildTreeTab() []Graphite.Widget {
+	panel := Graphite.NewPanel(0, 2, 0, 0)
+	panel.SetPercentLayout(0, 0, 100, 90)
+	panel.AddWidget(Graphite.NewLabel(0, 0,
+		"Left/Right: collapse/expand or jump to parent/child. Enter or double-click: select. Children load lazily on first expand."))
+
+	status := Graphite.NewLabel(0, 1, "(nothing selected)")
+	panel.AddWidget(status)
+
+	roots := []*Graphite.TreeNode{
+		{Label: "graphite/", HasChildren: true},
+		{Label: "diskette/", HasChildren: true},
+		{Label: "README.md"},
+	}
+
+	tv := Graphite.NewTreeView(0, 3, 0, 0, roots, func(n *Graphite.TreeNode) {
+		status.SetText("Selected: " + n.Label)
+	})
+	tv.SetPercentLayout(0, 0, 100, 100)
+
+	// A folder's "contents" are generated on demand, standing in for
+	// os.ReadDir on a real filesystem — LoadChildren is called at most
+	// once per node, so expanding/collapsing the same folder repeatedly
+	// doesn't regenerate (or, on a real filesystem, re-read) it.
+	tv.LoadChildren = func(n *Graphite.TreeNode) []*Graphite.TreeNode {
+		switch n.Label {
+		case "graphite/":
+			return []*Graphite.TreeNode{
+				{Label: "widgets/", HasChildren: true},
+				{Label: "go.mod"},
+				{Label: "core.go"},
+			}
+		case "diskette/":
+			return []*Graphite.TreeNode{
+				{Label: "cmd/", HasChildren: true},
+				{Label: "go.mod"},
+			}
+		case "widgets/":
+			return []*Graphite.TreeNode{
+				{Label: "listbox.go"},
+				{Label: "treeview.go"},
+			}
+		case "cmd/":
+			return []*Graphite.TreeNode{{Label: "main.go"}}
+		default:
+			return nil
+		}
+	}
+
+	panel.AddWidget(tv)
+	return []Graphite.Widget{panel}
+}
+
 func main() {
 	theme := nordTheme()
 	app := Graphite.NewApplication()
@@ -432,6 +490,7 @@ func main() {
 	tMixer, micFader, desktopFader := buildMixerTab(app)
 	tPiano, pianoHoriz, pianoVert, pianoStatus := buildPianoTab()
 	tImage := buildImageTab(theme, app)
+	tTree := buildTreeTab()
 
 	noteOnStatus := func(source string) func(note, velocity uint8) {
 		return func(note, velocity uint8) {
@@ -484,6 +543,10 @@ func main() {
 	}
 	tabs.AddTab("Image", tImage)
 	for _, w := range tImage {
+		win.AddWidget(w)
+	}
+	tabs.AddTab("Tree", tTree)
+	for _, w := range tTree {
 		win.AddWidget(w)
 	}
 

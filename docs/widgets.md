@@ -322,6 +322,87 @@ func NewListBox(x, y, w, h int, items []string, onSelect func(int, string)) *Lis
 
 ---
 
+## TreeView
+
+A focusable, scrollable, single-selection tree — ListBox's hierarchical
+sibling, for browsing nested data (a filesystem, an outline, anything with
+parent/child structure) with expand/collapse instead of a flat list.
+
+```go
+root := &Graphite.TreeNode{Label: "Projects", HasChildren: true}
+tv := Graphite.NewTreeView(0, 3, 0, 10, []*Graphite.TreeNode{root}, func(n *Graphite.TreeNode) {
+	// fires on Enter or a click on a row
+})
+tv.LoadChildren = func(n *Graphite.TreeNode) []*Graphite.TreeNode {
+	// called once, the first time n is expanded — read a directory,
+	// query a database, whatever populating n's children actually costs
+	return []*Graphite.TreeNode{{Label: "graphite"}, {Label: "diskette"}}
+}
+```
+
+```go
+type TreeNode struct {
+	Label       string
+	HasChildren bool
+	Expanded    bool
+	Children    []*TreeNode
+}
+
+type TreeView struct {
+	BaseWidget
+	Roots        []*TreeNode
+	Selected     *TreeNode
+	Scroll       int
+	LoadChildren func(node *TreeNode) []*TreeNode
+	OnSelect     func(node *TreeNode)
+	OnDoubleClick func(node *TreeNode)
+	OnExpand     func(node *TreeNode)
+	OnCollapse   func(node *TreeNode)
+}
+
+func NewTreeView(x, y, w, h int, roots []*TreeNode, onSelect func(node *TreeNode)) *TreeView
+func (t *TreeView) SetRoots(roots []*TreeNode)
+func (t *TreeView) Expand(node *TreeNode)
+func (t *TreeView) Collapse(node *TreeNode)
+func (t *TreeView) Toggle(node *TreeNode)
+```
+
+- `HasChildren` marks a node as expandable *before* its children are known
+  — e.g. a directory a real file manager hasn't `ReadDir`'d yet. Leave
+  `LoadChildren` nil for a fully static tree instead (`Children` already
+  populated wherever `HasChildren` is true); set it for a lazily-populated
+  one, and it's called at most once per node, the first time that node is
+  expanded — `Children` is cached from then on, so re-collapsing and
+  re-expanding the same node doesn't reload it.
+- `Up`/`Down`/`Home`/`End`/`PageUp`/`PageDown` move `Selected` through the
+  currently *visible* rows (a collapsed subtree's descendants don't count).
+  `Right` expands the selected node if it's collapsed, or moves selection
+  to its first child if it's already expanded; `Left` is the mirror image
+  — collapses an expanded node, or moves selection to its parent if it's
+  already collapsed (or a leaf). `Enter` and a row click fire
+  `OnDoubleClick` if set else `OnSelect`, the same as `ListBox`; clicking a
+  row's own expand/collapse glyph toggles it instead of selecting.
+- `Selected` is the node's own identity (a `*TreeNode`), not an index —
+  safe to keep across `Roots`/`Children` mutations; if the node it points
+  to is no longer reachable, it's reset to the first visible node (or
+  `nil` if the tree is empty) the next time the tree's structure changes.
+- Same scrollbar behavior as `ListBox`.
+- Each row draws the classic `tree`-command connectors (`├── `, `└── `,
+  `│`) ahead of its expand/collapse glyph and label, e.g.:
+  ```
+  ▼ root/
+  ├── ▼ folder_1/
+  │   ├──   file_1.1.txt
+  │   └──   file_1.2.txt
+  └──   file_root.txt
+  ```
+  A top-level entry in `Roots` (no parent) draws no connector of its own
+  — only nodes with a parent do, so a `TreeView` with several independent
+  roots (no single node listing them all as `Children`) shows them
+  undecorated, the same way a plain listing would.
+
+---
+
 ## TodoList
 
 A scrollable checklist, either interactive or driven programmatically.

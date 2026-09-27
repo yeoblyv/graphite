@@ -385,6 +385,30 @@ func (lb *ListBox) HandleEvent(ev Event) {
 			if lb.Selected >= lb.Scroll+lb.LastH {
 				lb.Scroll = lb.Selected - lb.LastH + 1
 			}
+		} else if ev.Key == KeyHome && len(lb.Items) > 0 {
+			lb.Selected = 0
+			lb.Scroll = 0
+		} else if ev.Key == KeyEnd && len(lb.Items) > 0 {
+			lb.Selected = len(lb.Items) - 1
+			if lb.Selected >= lb.LastH {
+				lb.Scroll = lb.Selected - lb.LastH + 1
+			}
+		} else if ev.Key == KeyPageUp && len(lb.Items) > 0 {
+			lb.Selected -= lb.LastH
+			if lb.Selected < 0 {
+				lb.Selected = 0
+			}
+			if lb.Selected < lb.Scroll {
+				lb.Scroll = lb.Selected
+			}
+		} else if ev.Key == KeyPageDown && len(lb.Items) > 0 {
+			lb.Selected += lb.LastH
+			if lb.Selected >= len(lb.Items) {
+				lb.Selected = len(lb.Items) - 1
+			}
+			if lb.Selected >= lb.Scroll+lb.LastH {
+				lb.Scroll = lb.Selected - lb.LastH + 1
+			}
 		} else if ev.Key == KeyEnter && lb.Selected >= 0 && lb.Selected < len(lb.Items) {
 			// Items is a plain exported slice a caller can reassign to a
 			// shorter one without resetting Selected, so this bound must be

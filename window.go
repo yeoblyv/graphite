@@ -39,6 +39,15 @@ type Window struct {
 	// dragged past the widget's edge) still reaches it. This mirrors the
 	// implicit mouse capture every desktop GUI toolkit does.
 	mouseCapture Widget
+
+	// PreDispatch, if set, is checked first by HandleEvent for every event —
+	// returning true stops dispatch there, before any of the normal mouse
+	// hit-testing / focus / Tab-order handling below runs. This is the
+	// chokepoint a modal needs to react to a shortcut regardless of which
+	// child currently has focus (see ShowFilePicker's Backspace/Alt+Left/
+	// Alt+Right/Ctrl+L handling), rather than having to hook every
+	// individual child widget's own HandleEvent.
+	PreDispatch func(ev Event) bool
 }
 
 // ClearMouseCapture forcefully releases any active mouse capture in this
@@ -164,6 +173,10 @@ func (w *Window) AddWidget(widget Widget) {
 // widgets never receive an event, regardless of what their own HandleEvent
 // does.
 func (w *Window) HandleEvent(ev Event) {
+	if w.PreDispatch != nil && w.PreDispatch(ev) {
+		return
+	}
+
 	if ev.Type == EventMouseDrag || ev.Type == EventMouseUp {
 		if w.mouseCapture != nil && w.mouseCapture.IsEnabled() {
 			w.mouseCapture.HandleEvent(ev)
@@ -261,7 +274,7 @@ func (w *Window) HandleEvent(ev Event) {
 
 	if ev.Type == EventKey {
 		flat := w.getFlatFocusables()
-		if ev.Key == KeyTab && len(flat) > 0 {
+		if (ev.Key == KeyTab || ev.Key == KeyBackTab) && len(flat) > 0 {
 			idx := -1
 			for i, f := range flat {
 				if f.HasFocus() {
@@ -270,7 +283,15 @@ func (w *Window) HandleEvent(ev Event) {
 					break
 				}
 			}
-			next := (idx + 1) % len(flat)
+			var next int
+			if ev.Key == KeyBackTab {
+				if idx == -1 {
+					idx = 0 // nothing focused: wrap to the last item, same as Tab wraps to the first
+				}
+				next = (idx - 1 + len(flat)) % len(flat)
+			} else {
+				next = (idx + 1) % len(flat)
+			}
 			flat[next].SetFocus(true)
 		} else {
 			for _, f := range flat {

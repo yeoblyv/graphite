@@ -2,11 +2,11 @@
 
 A modal in Graphite is just a `Window` pushed onto `Application`'s modal
 stack instead of set as the active window. This document covers the
-modal stack itself and the five modal dialogs the library ships:
-`ShowMessage`, `ShowConfirm`, `ShowValueEditor`, `ShowTextEditor`, and
-`ShowFilePicker`.
+modal stack itself and the six modal dialogs the library ships:
+`ShowMessage`, `ShowConfirm`, `ShowValueEditor`, `ShowTextEditor`,
+`ShowFilePicker`, and `ShowFolderPicker`.
 
-Every button label and static string these five dialogs draw is resolved
+Every button label and static string these dialogs draw is resolved
 against `app`'s current `Locale`, not hardcoded — see
 [i18n.md](i18n.md) for the full list of translated strings, the 15
 prepared languages, and how to add your own.
@@ -173,6 +173,34 @@ file-name field.
   (`ShowFilePicker`'s own source in `filepicker.go` is a reasonable
   starting point to copy and adapt, since there's no configuration hook
   for the filter list).
+- Keyboard shortcuts, regardless of which child widget currently has
+  focus: `Backspace` navigates up a directory (unless a text field is
+  focused, in which case it edits that field as usual), `Alt+Left`/
+  `Alt+Right` step back/forward through browsing history, `Ctrl+L` jumps
+  focus to the path field. `ListBox`'s own `Home`/`End`/`PageUp`/
+  `PageDown` also work on the file list.
 
 `gphedit` uses this to open both source images/video and `.gph` files;
 `showcase`'s Image tab uses it to load a `.gph` file to view.
+
+## `ShowFolderPicker`: browse and select a directory
+
+```go
+func ShowFolderPicker(app *Application, initialDir string, onSelect func(path string))
+```
+
+```go
+Graphite.ShowFolderPicker(app, ".", func(path string) {
+	// path is the directory the user confirmed
+})
+```
+
+The same browser modal as `ShowFilePicker`, minus the file-name field and
+filter dropdown — only directories are listed at all, since there's
+nothing else to select. Double-clicking a directory still navigates into
+it (the same as `ShowFilePicker`); confirming your current location is a
+separate, explicit action via the "Select Folder" button (labeled with
+`KeySelectFolder`), which calls `onSelect` with whatever directory is
+currently browsed — not whatever row happens to be highlighted, matching
+how OS-native folder pickers work. The same keyboard shortcuts
+(`Backspace`/`Alt+Left`/`Alt+Right`/`Ctrl+L`) apply.

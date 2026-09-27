@@ -451,6 +451,7 @@ func main() {
 						Bg:    Graphite.RGB(uint8(r8), uint8(g8), uint8(b8)),
 						Fg:    Graphite.RGB(uint8(r8/2), uint8(g8/2), uint8(b8/2)),
 						Level: level,
+						Alpha: 255,
 					}
 				}
 			}

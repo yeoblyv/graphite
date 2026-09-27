@@ -64,7 +64,8 @@ Full documentation lives in [`docs/`](docs/getting-started.md):
 | [Widgets reference](docs/widgets.md) | Every widget except `Fader` and modals: `Label`, `Button`, `InputBox`, `ListBox`, `TabView`, `Slider`, etc. |
 | [Fader](docs/fader.md) | The channel-strip mixer control, in depth |
 | [PianoRoll](docs/pianoroll.md) | The playable piano keyboard, plus the `graphite/audio` and `graphite/midi` companion packages for real sound and real MIDI hardware |
-| [Modals](docs/modals.md) | The modal stack, `ShowMessage`, `ShowValueEditor`, `ShowFilePicker` |
+| [Terminal](docs/terminal.md) | The embedded pseudo-terminal widget: `RawInputReceiver`, the VT100 interpreter, scrollback |
+| [Modals](docs/modals.md) | The modal stack, `ShowMessage`, `ShowValueEditor`, `ShowFilePicker`, `ShowFolderPicker` |
 | [Internationalization](docs/i18n.md) | `Locale`, `Application.T`, prepared translations, and adding your own language |
 | [Images](docs/images.md) | The GPH pseudographics image format and the `Image` widget |
 | [Custom widgets](docs/custom-widgets.md) | Building your own widget by embedding `BaseWidget` |

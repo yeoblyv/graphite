@@ -33,6 +33,17 @@ func TestParseANSI(t *testing.T) {
 		{"f10", []byte("\033[21~"), Event{Type: EventKey, Key: KeyF10}},
 		{"f11", []byte("\033[23~"), Event{Type: EventKey, Key: KeyF11}},
 		{"f12", []byte("\033[24~"), Event{Type: EventKey, Key: KeyF12}},
+		{"home (CSI-tilde)", []byte("\033[1~"), Event{Type: EventKey, Key: KeyHome}},
+		{"end (CSI-tilde)", []byte("\033[4~"), Event{Type: EventKey, Key: KeyEnd}},
+		{"page up", []byte("\033[5~"), Event{Type: EventKey, Key: KeyPageUp}},
+		{"page down", []byte("\033[6~"), Event{Type: EventKey, Key: KeyPageDown}},
+		{"home (CSI-H)", []byte{27, '[', 'H'}, Event{Type: EventKey, Key: KeyHome}},
+		{"end (CSI-F)", []byte{27, '[', 'F'}, Event{Type: EventKey, Key: KeyEnd}},
+		{"back-tab (Shift+Tab)", []byte{27, '[', 'Z'}, Event{Type: EventKey, Key: KeyBackTab}},
+		{"ctrl+l", []byte{12}, Event{Type: EventKey, Key: KeyCtrlL}},
+		{"alt+left", []byte("\033[1;3D"), Event{Type: EventKey, Key: KeyAltLeft}},
+		{"alt+right", []byte("\033[1;3C"), Event{Type: EventKey, Key: KeyAltRight}},
+		{"ctrl+left (unmapped modifier, consumed not leaked)", []byte("\033[1;5Da"), Event{Type: EventKey, CharCode: 'a'}},
 		{
 			"sgr mouse down",
 			[]byte("\033[<0;10;5M"),
@@ -122,6 +133,13 @@ func FuzzParseANSI(f *testing.F) {
 	f.Add([]byte{})
 	f.Add([]byte{27, '['})
 	f.Add([]byte{27, '[', '<'})
+	f.Add([]byte("\033[1~"))
+	f.Add([]byte("\033[1;3D"))
+	f.Add([]byte("\033[1;5D"))
+	f.Add([]byte("\033[1;"))
+	f.Add([]byte{27, '[', 'H'})
+	f.Add([]byte{27, '[', 'Z'})
+	f.Add([]byte{12})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_ = parseANSI(data)

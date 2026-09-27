@@ -149,8 +149,12 @@ var ss3Key = map[byte]KeyCode{
 // assigned key by long-standing VT220 convention and are intentionally
 // absent.
 var csiTildeKey = map[int]KeyCode{
+	1:  KeyHome,
 	2:  KeyInsert,
 	3:  KeyDelete,
+	4:  KeyEnd,
+	5:  KeyPageUp,
+	6:  KeyPageDown,
 	11: KeyF1,
 	12: KeyF2,
 	13: KeyF3,
@@ -208,9 +212,56 @@ func parseANSI(buf []byte) []Event {
 					buf = buf[3:]
 					matched = true
 				}
+				if !matched && buf[2] == 'H' {
+					events = append(events, Event{Type: EventKey, Key: KeyHome})
+					buf = buf[3:]
+					matched = true
+				}
+				if !matched && buf[2] == 'F' {
+					events = append(events, Event{Type: EventKey, Key: KeyEnd})
+					buf = buf[3:]
+					matched = true
+				}
+				if !matched && buf[2] == 'Z' {
+					events = append(events, Event{Type: EventKey, Key: KeyBackTab})
+					buf = buf[3:]
+					matched = true
+				}
 
 				if matched {
 					continue
+				}
+
+				// "\x1b[" + digits + ";" + digits + final — xterm's
+				// modifier-parameter form. Only the Alt-arrow case
+				// (modifier 3) maps to a KeyCode today (KeyAltLeft/
+				// KeyAltRight, for FilePicker's history shortcut); any
+				// other modifier/final combination is recognized just
+				// enough to be consumed without falling through to the
+				// plain-tilde parser below, rather than emitting a
+				// spurious rune from its digits.
+				if j := 2; j < len(buf) && buf[j] >= '0' && buf[j] <= '9' {
+					k := j
+					for k < len(buf) && buf[k] >= '0' && buf[k] <= '9' {
+						k++
+					}
+					if k < len(buf) && buf[k] == ';' {
+						m := k + 1
+						for m < len(buf) && buf[m] >= '0' && buf[m] <= '9' {
+							m++
+						}
+						if m > k+1 && m < len(buf) {
+							modifier, _ := strconv.Atoi(string(buf[k+1 : m]))
+							final := buf[m]
+							if modifier == 3 && final == 'D' {
+								events = append(events, Event{Type: EventKey, Key: KeyAltLeft})
+							} else if modifier == 3 && final == 'C' {
+								events = append(events, Event{Type: EventKey, Key: KeyAltRight})
+							}
+							buf = buf[m+1:]
+							continue
+						}
+					}
 				}
 
 				if j := 2; j < len(buf) && buf[j] >= '0' && buf[j] <= '9' {
@@ -275,6 +326,8 @@ func parseANSI(buf []byte) []Event {
 				events = append(events, Event{Type: EventKey, Key: KeyCtrlC})
 			case 9:
 				events = append(events, Event{Type: EventKey, Key: KeyTab})
+			case 12:
+				events = append(events, Event{Type: EventKey, Key: KeyCtrlL})
 			case 13:
 				events = append(events, Event{Type: EventKey, Key: KeyEnter})
 			case 22:

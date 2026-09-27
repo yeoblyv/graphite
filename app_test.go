@@ -264,3 +264,82 @@ func TestApplication_SetThemeAffectsRendering(t *testing.T) {
 		t.Fatalf("after SetTheme: cell = %+v, want bg=%d fg=%d", got, custom.BgWindow, custom.FgWindow)
 	}
 }
+
+func TestScrollKeyPrefix(t *testing.T) {
+	if delta, rest, ok := scrollKeyPrefix([]byte("\x1b[5~")); !ok || delta != rawPageScrollLines || len(rest) != 0 {
+		t.Errorf("PageUp: delta=%d rest=%q ok=%v, want delta=%d rest=\"\" ok=true", delta, rest, ok, rawPageScrollLines)
+	}
+	if delta, rest, ok := scrollKeyPrefix([]byte("\x1b[6~")); !ok || delta != -rawPageScrollLines || len(rest) != 0 {
+		t.Errorf("PageDown: delta=%d rest=%q ok=%v, want delta=%d rest=\"\" ok=true", delta, rest, ok, -rawPageScrollLines)
+	}
+	if delta, rest, ok := scrollKeyPrefix([]byte("\x1b[5~extra")); !ok || delta != rawPageScrollLines || string(rest) != "extra" {
+		t.Errorf("PageUp with trailing bytes: delta=%d rest=%q ok=%v, want rest=\"extra\"", delta, rest, ok)
+	}
+	if _, _, ok := scrollKeyPrefix([]byte("hello")); ok {
+		t.Errorf("scrollKeyPrefix matched plain text that isn't PageUp/PageDown at all")
+	}
+	if _, _, ok := scrollKeyPrefix([]byte("\x1b[3~")); ok {
+		t.Errorf("scrollKeyPrefix matched \\x1b[3~ (Delete), not a PageUp/PageDown sequence")
+	}
+}
+
+// fakeScrollable is a minimal RawInputReceiver + Scrollable double, so
+// Run's PageUp/PageDown interception logic can be exercised without a
+// real pty.
+type fakeScrollable struct {
+	BaseWidget
+	written      []byte
+	scrolls      []int
+	acceptScroll bool
+}
+
+func (f *fakeScrollable) DrawRelative(c *Canvas, offX, offY, pW, pH int) {}
+func (f *fakeScrollable) WriteRaw(p []byte)                              { f.written = append(f.written, p...) }
+func (f *fakeScrollable) HandleScroll(delta int) bool {
+	f.scrolls = append(f.scrolls, delta)
+	return f.acceptScroll
+}
+
+// runsPageKeyInterception mirrors Run's own decision (scrollKeyPrefix,
+// then HandleScroll if Scrollable, else/otherwise forwardRaw) against a
+// fake receiver, since Run itself is an unbounded loop reading real
+// terminal input and isn't unit-testable directly.
+func runsPageKeyInterception(app *Application, raw RawInputReceiver, data []byte) {
+	if delta, rest, ok := scrollKeyPrefix(data); ok {
+		if scrollable, isScrollable := raw.(Scrollable); isScrollable && scrollable.HandleScroll(delta) {
+			if len(rest) > 0 {
+				app.forwardRaw(raw, rest)
+			}
+			return
+		}
+	}
+	app.forwardRaw(raw, data)
+}
+
+func TestApplication_PageKeyInterception_AcceptedByScrollable(t *testing.T) {
+	app := NewApplication()
+	fs := &fakeScrollable{acceptScroll: true}
+
+	runsPageKeyInterception(app, fs, []byte("\x1b[5~ls\n"))
+
+	if len(fs.scrolls) != 1 || fs.scrolls[0] != rawPageScrollLines {
+		t.Errorf("scrolls = %v, want a single call with delta=%d", fs.scrolls, rawPageScrollLines)
+	}
+	if string(fs.written) != "ls\n" {
+		t.Errorf("written = %q, want only the bytes after the PageUp prefix (\"ls\\n\")", fs.written)
+	}
+}
+
+func TestApplication_PageKeyInterception_DeclinedFallsThroughRaw(t *testing.T) {
+	app := NewApplication()
+	fs := &fakeScrollable{acceptScroll: false} // e.g. Terminal.HandleScroll during the alt screen
+
+	runsPageKeyInterception(app, fs, []byte("\x1b[6~"))
+
+	if len(fs.scrolls) != 1 {
+		t.Fatalf("HandleScroll was not even offered the chance to accept/decline")
+	}
+	if string(fs.written) != "\x1b[6~" {
+		t.Errorf("written = %q, want the whole original sequence forwarded unaltered when declined", fs.written)
+	}
+}

@@ -69,7 +69,10 @@ type RawInputReceiver interface {
 `RawInputReceiver` and, if so, routes raw bytes to it directly —
 bypassing `parseANSI`'s `Event` decoding entirely for as long as it holds
 focus. `HandleEvent` on a `RawInputReceiver` is effectively never called
-for key input during that time; `Terminal`'s own is a no-op.
+for *key* input during that time — but a scroll wheel notch still reaches
+it as a normally-decoded `Event` (see Mouse input below), which is how
+`Terminal.HandleEvent` ends up handling `EventMouseScrollUp`/`Down` for
+[Scrollback](#scrollback) despite raw passthrough being active.
 
 **Detaching focus:** if every keystroke reaches the terminal undecoded, a
 plain Tab press would too — so a `Terminal`-focused window would have no
@@ -95,6 +98,44 @@ impossible while a `Terminal` has focus, since every byte (mouse reports
 included) would go straight to it before `Window`'s own hit-testing ever
 ran.
 
+## Scrollback
+
+`vtScreen` keeps up to `Terminal.SetScrollbackLimit`'s row count (default
+`DefaultScrollbackLines`, 2000) of primary-screen output that's scrolled
+off the top — a mouse-wheel notch or `PageUp`/`PageDown` scrolls the view
+up into it, the same as any real terminal emulator's history buffer. A
+small corner badge (`↑ 120/2000`, say) appears while scrolled, and
+disappears the moment the view returns to the live bottom.
+
+Two things make this **not** just "always keep every row you print,
+forever":
+
+- **Only a full-screen scroll of the primary grid captures anything.** A
+  program that sets a narrower `DECSTBM` scroll region (a pager keeping a
+  status line pinned at the bottom, say) scrolling *that* region doesn't
+  touch scrollback — matching what a real terminal's history buffer
+  captures. Neither does anything happening on the **alternate screen**:
+  `vim`, `htop`, `less`, and friends manage their own full-screen display
+  and have no scrollback of their own for this widget to show instead.
+- **It's capped and trimmed from the front**, so a long-running shell
+  doesn't grow `Terminal`'s memory use without bound.
+
+Because of the alternate-screen exclusion above, scrolling behaves
+differently depending on what's currently running:
+
+- **Primary screen (an ordinary shell prompt):** the mouse wheel and
+  `PageUp`/`PageDown` scroll `Terminal`'s own scrollback. `PageUp`/
+  `PageDown` are intercepted *before* `WriteRaw` — the CSI-tilde bytes
+  (`Terminal.HandleScroll`, checked via a small `Scrollable` interface in
+  `app.go`) never reach the shell at all while this widget has focus.
+- **Alternate screen (`vim`, `htop`, `less`, ...):** `Terminal.HandleScroll`
+  declines (returns `false`), so `PageUp`/`PageDown` fall through to raw
+  passthrough and reach the program unaltered, exactly as if `Terminal`
+  weren't intercepting them. The mouse wheel, however, doesn't reach such
+  a program either way — forwarding it as the program's *own* mouse input
+  would need tracking whether the program itself enabled mouse reporting
+  (`DECSET` 1000/1002/1003), which this doesn't attempt.
+
 ## Known limitations
 
 - **No mouse support inside the terminal.** A mouse click is always
@@ -105,9 +146,12 @@ ran.
   hit-testing ever saw them. The tradeoff is that a program relying on
   terminal mouse reporting (`vim`'s or `tmux`'s mouse mode, say) won't
   see clicks made inside the `Terminal` widget itself.
-- **No scrollback.** Only the visible grid is kept; scrolled-off lines
-  are gone, the same way a bare VT100 terminal (as opposed to a modern
-  terminal emulator with a history buffer) behaves.
+- **Scrollback's mouse-wheel forwarding while a full-screen program is
+  running is one-way only.** The mouse wheel adjusts `Terminal`'s own
+  scrollback while the primary screen is active, but doesn't reach a
+  program on the alternate screen (`vim`, `htop`, `less`) as its own
+  mouse input either way — see [Scrollback](#scrollback) below for what
+  does and doesn't reach such a program.
 - **No DEC line-drawing character sets.** A program that leans on them
   for box-drawing borders (some `ncurses` configurations) will show the
   raw ASCII designator characters instead of the box-drawing glyphs.

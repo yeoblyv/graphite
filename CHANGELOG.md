@@ -30,6 +30,70 @@ Baseline for the first public release.
 
 ### Added
 
+- `Terminal` scrollback: a mouse-wheel notch or `PageUp`/`PageDown` now
+  scrolls up to `DefaultScrollbackLines` (2000, configurable via
+  `Terminal.SetScrollbackLimit`) rows of primary-screen output that
+  scrolled off — the same "why does my shell forget everything the
+  moment it scrolls" gap every bare VT100 implementation has, now closed
+  the way a real terminal emulator's history buffer works. Only a
+  full-screen scroll of the primary grid captures anything: a narrower
+  `DECSTBM` region, and anything on the alternate screen (`vim`, `htop`,
+  `less`), are excluded, matching what a real terminal's own scrollback
+  captures. `PageUp`/`PageDown` reach a full-screen program on the
+  alternate screen completely unaltered, via a new `Scrollable` interface
+  a `RawInputReceiver` can opt into. See
+  [docs/terminal.md#scrollback](docs/terminal.md#scrollback).
+- Cross-platform PTY hardening: `startPTY` on Windows now passes
+  `CREATE_BREAKAWAY_FROM_JOB` (retrying without it if the host's own job
+  object doesn't permit breakaway), so an interactive shell doesn't
+  inherit the host application's own job-scoped resource/lifetime limits.
+  A non-zero exit from a Windows `Terminal`'s child now also carries an
+  `ExitCode() int` method, matching `*exec.ExitError`'s (returned by
+  `Wait()` on Linux/macOS) — a caller checking `err.(interface{
+  ExitCode() int })` now behaves identically on every platform. The
+  still-open Windows CI gap (a `Terminal`'s child output not always
+  reaching the reader) has a much more specific diagnosis now, in
+  `skipIfWindowsConPTYOutputIsBroken`'s doc comment, for whoever picks it
+  up next with an unrestricted Windows host to test against.
+- `ShowFolderPicker`, `ShowFilePicker`'s directory-selecting counterpart:
+  the same browser modal, minus the file-name field and filter dropdown,
+  confirming whatever directory is currently browsed via a new "Select
+  Folder" button rather than requiring a specific row to be picked. Both
+  dialogs also gained navigation shortcuts that work regardless of which
+  child has focus (`Backspace` up a directory, `Alt+Left`/`Alt+Right`
+  history, `Ctrl+L` focuses the path field), via a new general-purpose
+  `Window.PreDispatch` hook any modal can use for its own shortcuts. See
+  [docs/modals.md](docs/modals.md) and
+  [docs/custom-widgets.md](docs/custom-widgets.md).
+- New `KeyCode`s — `KeyHome`, `KeyEnd`, `KeyPageUp`, `KeyPageDown`,
+  `KeyBackTab` (Shift+Tab, which now reverses `Window`'s Tab order),
+  `KeyCtrlL`, `KeyAltLeft`, `KeyAltRight` — and matching `ListBox`
+  support for `Home`/`End`/`PageUp`/`PageDown`.
+- `TreeView`, a focusable, scrollable, single-selection tree widget with
+  expand/collapse — `ListBox`'s hierarchical sibling, for a file manager's
+  directory tree or any other nested data. `LoadChildren`, if set, lazily
+  populates a node's children the first time it's expanded (called at most
+  once per node) rather than requiring the whole tree in memory up front;
+  `Selected` is the node's own identity rather than an index, so it stays
+  valid across `Roots`/`Children` mutations instead of silently pointing at
+  the wrong row. Each row draws the classic `tree`-command connectors
+  (`├── `/`└── `/`│`) instead of plain indentation. See
+  [docs/widgets.md](docs/widgets.md#treeview) and the showcase's new Tree
+  tab.
+- `GphPixel.Alpha`, a real per-pixel alpha channel (0=transparent,
+  255=opaque, PNG convention) for the `.gph` image format: `Image`'s draw
+  code now blends a partially-transparent pixel's own `Bg`/`Fg` into
+  whatever is already on the canvas underneath, instead of the previous
+  all-or-nothing `Bg == ColorNone` pass-through alone. `WriteGph` now
+  always writes the new file version (`GphMagicV2`, 10 bytes/pixel);
+  `ReadGph` still reads the old version (`GphMagic`, 9 bytes/pixel,
+  `Alpha` defaulted to 255) unchanged, so every existing `.gph` file keeps
+  rendering exactly as it did before. **Breaking for in-memory code only**:
+  `Alpha`'s zero value is 0 (fully transparent), so a `GphPixel{}` literal
+  that doesn't set it is now invisible — every construction site in this
+  repository (`gphedit`, `showcase`, `docs/images.md`) has been updated;
+  any other code building `GphPixel` values directly needs the same fix.
+  See [docs/images.md](docs/images.md).
 - Internationalization: `Application.T` resolves every string the
   library's own `ShowMessage`/`ShowConfirm`/`ShowTextEditor`/
   `ShowValueEditor`/`ShowFilePicker` dialogs draw against `Application`'s

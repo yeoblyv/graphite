@@ -284,6 +284,20 @@ func (app *Application) Run() {
 					for _, ev := range parseANSI(data) {
 						app.routeEvent(ev)
 					}
+				} else if delta, rest, ok := scrollKeyPrefix(data); ok {
+					// PageUp/PageDown: give a Scrollable receiver first
+					// look. It reports whether it actually wants them
+					// (Terminal.HandleScroll declines while an alt-screen
+					// program owns the display) — declined, or not even
+					// Scrollable, falls through to raw passthrough for the
+					// whole chunk exactly as before.
+					if scrollable, isScrollable := raw.(Scrollable); isScrollable && scrollable.HandleScroll(delta) {
+						if len(rest) > 0 {
+							app.forwardRaw(raw, rest)
+						}
+					} else {
+						app.forwardRaw(raw, data)
+					}
 				} else {
 					app.forwardRaw(raw, data)
 				}
@@ -322,6 +336,42 @@ const rawDetachByte = 0x1C
 // as raw bytes the same way keyboard input is.
 func looksLikeMouseReport(data []byte) bool {
 	return bytes.HasPrefix(data, []byte("\x1b[<"))
+}
+
+// Scrollable is implemented by a RawInputReceiver that wants PageUp/
+// PageDown to control its own scrollback instead of reaching the child
+// as raw bytes — Terminal is the only built-in widget that does (see
+// Terminal.HandleScroll). Run checks for this before forwarding raw
+// bytes that start with one of those keys; HandleScroll's own return
+// value decides whether the key is actually intercepted or falls
+// through to the child unaltered, e.g. while a full-screen alternate-
+// screen program is running and wants real PageUp/PageDown itself.
+type Scrollable interface {
+	HandleScroll(delta int) bool
+}
+
+// rawPageScrollLines approximates a "page" of scrollback for a Scrollable
+// reacting to PageUp/PageDown via scrollKeyPrefix — Run has no way to
+// know the focused receiver's own visible height (which would be the
+// ideal amount, the way a mouse wheel notch's much smaller
+// scrollWheelLines is exact for Terminal specifically), so this is a
+// reasonable fixed compromise instead.
+const rawPageScrollLines = 10
+
+// scrollKeyPrefix reports whether data begins with the CSI-tilde
+// encoding of PageUp ("\x1b[5~") or PageDown ("\x1b[6~") — the same
+// sequences csiTildeKey decodes for normal (non-raw) input — returning
+// the scroll delta to apply and whatever bytes follow the matched
+// prefix, still needing forwarding if the scroll itself is accepted.
+func scrollKeyPrefix(data []byte) (delta int, rest []byte, ok bool) {
+	switch {
+	case bytes.HasPrefix(data, []byte("\x1b[5~")): // PageUp: toward scrollback (older output)
+		return rawPageScrollLines, data[4:], true
+	case bytes.HasPrefix(data, []byte("\x1b[6~")): // PageDown: toward the live bottom
+		return -rawPageScrollLines, data[4:], true
+	default:
+		return 0, nil, false
+	}
 }
 
 func (app *Application) forwardRaw(raw RawInputReceiver, data []byte) {

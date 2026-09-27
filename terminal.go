@@ -1,6 +1,13 @@
 package Graphite
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
+
+// DefaultScrollbackLines is how many rows of scrolled-off primary-screen
+// output a Terminal keeps by default — see Terminal.SetScrollbackLimit.
+const DefaultScrollbackLines = 2000
 
 // Terminal is a widget that runs a shell (or any interactive program)
 // attached to a real pseudo-terminal and renders its output faithfully —
@@ -21,9 +28,23 @@ import "sync"
 // modifier combinations — which is exactly the "distortion" an embedded
 // terminal can't afford.
 //
-// Known gaps: no scrollback (only the visible grid), and DEC line-drawing
-// character sets aren't translated, so a program that leans on them for
-// box-drawing borders may show the raw designator characters instead.
+// Scrollback covers the primary screen only (see vtScreen.scrollUp) — the
+// same behavior every real terminal has, since a full-screen program on
+// the alternate screen (vim, htop, less) manages its own display, not
+// this widget's scrollback. PageUp/PageDown reach such a program raw and
+// unaltered while it's running, exactly as if this widget weren't
+// intercepting them at all (see HandleScroll); the mouse wheel currently
+// doesn't reach it either way — Application.Run decodes a scroll gesture
+// into an Event rather than raw bytes even while this widget has focus
+// (see focusedRawReceiver), so there's no raw-bytes path for it to fall
+// through to the way there is for keys. Properly forwarding it as its own
+// mouse report needs tracking whether the child itself asked for mouse
+// reporting (DECSET 1000/1002/1003), which is a separate, larger piece of
+// work this doesn't attempt.
+//
+// Known gaps: DEC line-drawing character sets aren't translated, so a
+// program that leans on them for box-drawing borders may show the raw
+// designator characters instead.
 type Terminal struct {
 	BaseWidget
 
@@ -113,6 +134,16 @@ func (t *Terminal) Close() error {
 	return t.pty.Close()
 }
 
+// SetScrollbackLimit changes how many rows of scrolled-off primary-screen
+// output this Terminal keeps (DefaultScrollbackLines if never called).
+// Lowering it below the current scrollback's length takes effect the
+// next time a row scrolls off, not retroactively.
+func (t *Terminal) SetScrollbackLimit(lines int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.screen.scrollbackLimit = lines
+}
+
 // WriteRaw implements RawInputReceiver: every byte is sent to the child
 // exactly as received, with no interpretation.
 func (t *Terminal) WriteRaw(p []byte) {
@@ -140,7 +171,7 @@ func (t *Terminal) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 	theme := c.Theme()
 	for y := 0; y < t.screen.rows; y++ {
 		for x := 0; x < t.screen.cols; x++ {
-			cell := t.screen.Cell(x, y)
+			cell := t.screen.ViewCell(x, y)
 			fg, bg := cell.Fg, cell.Bg
 			if fg == ColorNone {
 				fg = theme.FgWindow
@@ -159,7 +190,11 @@ func (t *Terminal) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		}
 	}
 
-	if t.screen.CursorVisible() && t.IsFocused {
+	// The cursor lives in the live grid, which isn't what's on screen
+	// while the view is scrolled up into scrollback — drawing it at (cx,
+	// cy) here would land on whatever scrollback content currently
+	// occupies that row instead.
+	if t.screen.CursorVisible() && t.IsFocused && t.screen.ViewOffset() == 0 {
 		cx, cy := t.screen.Cursor()
 		if cx >= 0 && cx < t.screen.cols && cy >= 0 && cy < t.screen.rows {
 			cell := t.screen.Cell(cx, cy)
@@ -178,10 +213,55 @@ func (t *Terminal) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 			c.DrawCell(t.AbsX+cx, t.AbsY+cy, ch, bg, fg)
 		}
 	}
+
+	// A compact corner badge, not a persistent scrollbar column, so it
+	// doesn't visually collide with a full-screen program's own use of
+	// every cell — and it only appears at all while actually scrolled,
+	// the same way a real terminal emulator's scroll indicator does.
+	if off := t.screen.ViewOffset(); off > 0 {
+		badge := fmt.Sprintf(" ↑ %d/%d ", off, t.screen.scrollbackRows())
+		badgeW := len([]rune(badge))
+		if badgeW <= t.LastW {
+			c.DrawText(t.AbsX+t.LastW-badgeW, t.AbsY, badge, theme.BgFocused, theme.FgFocused)
+		}
+	}
 }
 
+// scrollWheelLines is how many rows one mouse-wheel notch scrolls, the
+// common terminal-emulator convention.
+const scrollWheelLines = 3
+
 // HandleEvent implements Widget. A mouse click just focuses the terminal
-// (Window's own click-to-focus handling does the rest) — no key event
-// ever reaches here while focused, since Application.Run routes those
-// through WriteRaw instead once this widget has focus.
-func (t *Terminal) HandleEvent(ev Event) {}
+// (Window's own click-to-focus handling does the rest); a scroll wheel
+// notch adjusts scrollback (see the package doc comment for why this
+// doesn't reach a full-screen alternate-screen program instead). No key
+// event ever reaches here while focused, since Application.Run routes
+// those through WriteRaw instead once this widget has focus — see
+// HandleScroll for how PageUp/PageDown still reach scrollback despite
+// that.
+func (t *Terminal) HandleEvent(ev Event) {
+	switch ev.Type {
+	case EventMouseScrollUp:
+		t.HandleScroll(scrollWheelLines) // toward scrollback (older output)
+	case EventMouseScrollDown:
+		t.HandleScroll(-scrollWheelLines) // toward the live bottom
+	}
+}
+
+// HandleScroll adjusts scrollback by delta rows (negative scrolls up,
+// toward older output) and reports whether it did: it's a no-op
+// returning false while the alternate screen is active, since a
+// full-screen program there (vim, htop, less) owns the whole display and
+// has no scrollback of its own for this widget to show instead — see
+// Run's raw-passthrough branch in app.go, which forwards PageUp/PageDown
+// to the child unaltered exactly when this returns false, the same as if
+// this widget weren't intercepting them at all.
+func (t *Terminal) HandleScroll(delta int) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.screen.usingAlt {
+		return false
+	}
+	t.screen.ScrollBy(delta)
+	return true
+}

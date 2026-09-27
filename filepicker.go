@@ -8,16 +8,46 @@ import (
 	"strings"
 )
 
+// pickerMode selects what showPicker lets the user confirm: a file
+// (ShowFilePicker) or the currently browsed directory itself
+// (ShowFolderPicker). Both share every bit of browsing/navigation
+// machinery — only the confirm action, its button label, the window
+// title, and whether files are even listed differ.
+type pickerMode int
+
+const (
+	pickerFiles pickerMode = iota
+	pickerFolders
+)
+
 // ShowFilePicker opens a modal dialog that lets the user browse the filesystem
 // and select a file. The callback onSelect is invoked with the absolute path
 // of the chosen file. If the user cancels, the modal is closed and onSelect is not called.
 func ShowFilePicker(app *Application, initialDir string, onSelect func(path string)) {
+	showPicker(app, initialDir, pickerFiles, onSelect)
+}
+
+// ShowFolderPicker opens the same modal dialog as ShowFilePicker, but for
+// choosing a directory instead of a file: files aren't listed, and the
+// confirm button (labeled KeySelectFolder) selects whatever directory is
+// currently browsed rather than requiring a specific entry to be picked —
+// the same convention OS-native folder pickers use. onSelect receives that
+// directory's absolute path.
+func ShowFolderPicker(app *Application, initialDir string, onSelect func(path string)) {
+	showPicker(app, initialDir, pickerFolders, onSelect)
+}
+
+func showPicker(app *Application, initialDir string, mode pickerMode, onSelect func(path string)) {
 	dir, err := filepath.Abs(initialDir)
 	if err != nil {
 		dir = "."
 	}
 
-	mod := NewWindow(0, 0, " "+app.T(KeyOpen)+" ")
+	title := app.T(KeyOpen)
+	if mode == pickerFolders {
+		title = app.T(KeySelectFolder)
+	}
+	mod := NewWindow(0, 0, " "+title+" ")
 	mod.SetPercentSize(90, 90)
 
 	var history []string
@@ -25,28 +55,32 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 
 	var loadDir func(target string, addToHistory bool)
 
-	backBtn := NewButton(2, 1, "<", BtnDefault, func() {
+	goBack := func() {
 		if historyIdx > 0 {
 			historyIdx--
 			loadDir(history[historyIdx], false)
 		}
-	})
-	mod.AddWidget(backBtn)
-
-	fwdBtn := NewButton(8, 1, ">", BtnDefault, func() {
+	}
+	goForward := func() {
 		if historyIdx < len(history)-1 {
 			historyIdx++
 			loadDir(history[historyIdx], false)
 		}
-	})
-	mod.AddWidget(fwdBtn)
-
-	upBtn := NewButton(14, 1, "^", BtnDefault, func() {
+	}
+	goUp := func() {
 		parent := filepath.Dir(dir)
 		if parent != dir {
 			loadDir(parent, true)
 		}
-	})
+	}
+
+	backBtn := NewButton(2, 1, "<", BtnDefault, goBack)
+	mod.AddWidget(backBtn)
+
+	fwdBtn := NewButton(8, 1, ">", BtnDefault, goForward)
+	mod.AddWidget(fwdBtn)
+
+	upBtn := NewButton(14, 1, "^", BtnDefault, goUp)
 	mod.AddWidget(upBtn)
 
 	pathInput := NewInputBox(20, 1, -2, app.T(KeyDirLabel))
@@ -104,13 +138,17 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 	var displayItems []string
 
 	fileNameInput := NewInputBox(2, -2, -46, app.T(KeyFileNameLabel))
-	mod.AddWidget(fileNameInput)
-
 	filters := []string{app.T(KeyFilterAll), app.T(KeyFilterGph), app.T(KeyFilterImage), app.T(KeyFilterVideo)}
 	filterBox := NewComboBox(-44, -2, 22, filters, func(idx int, item string) {
 		loadDir(dir, false)
 	})
-	mod.AddWidget(filterBox)
+	if mode == pickerFiles {
+		// Neither widget means anything in folder mode: there's no
+		// filename to type and nothing to filter once files aren't even
+		// listed (see loadDir below).
+		mod.AddWidget(fileNameInput)
+		mod.AddWidget(filterBox)
+	}
 
 	formatSize := func(bytes int64) string {
 		if bytes < 1024 {
@@ -151,7 +189,7 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 			for _, e := range d {
 				if e.IsDir() {
 					dirs = append(dirs, e)
-				} else {
+				} else if mode == pickerFiles {
 					ext := strings.ToLower(filepath.Ext(e.Name()))
 					if filterGph {
 						if ext == ".gph" {
@@ -191,8 +229,6 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 			if nameW < 10 {
 				nameW = 10
 			}
-
-			headerLbl.SetText("  " + padRight(app.T(KeyColumnName), nameW) + " " + padRight(app.T(KeyColumnDate), dateW) + " " + padRight(app.T(KeyColumnType), typeW) + " " + padLeft(app.T(KeyColumnSize), sizeW))
 
 			headerLbl.SetText("  " + padRight(app.T(KeyColumnName), nameW) + " " + padRight(app.T(KeyColumnDate), dateW) + " " + padRight(app.T(KeyColumnType), typeW) + " " + padLeft(app.T(KeyColumnSize), sizeW))
 
@@ -295,16 +331,62 @@ func ShowFilePicker(app *Application, initialDir string, onSelect func(path stri
 		}
 	}
 
-	mod.AddWidget(NewButton(-20, -2, app.T(KeyOpen), BtnSuccess, func() {
-		if fileNameInput.Value != "" {
+	confirmLabel := app.T(KeyOpen)
+	var confirmAction func()
+	if mode == pickerFolders {
+		confirmLabel = app.T(KeySelectFolder)
+		confirmAction = func() {
 			app.CloseModal()
-			onSelect(filepath.Join(dir, fileNameInput.Value))
+			onSelect(dir)
 		}
-	}))
+	} else {
+		confirmAction = func() {
+			if fileNameInput.Value != "" {
+				app.CloseModal()
+				onSelect(filepath.Join(dir, fileNameInput.Value))
+			}
+		}
+	}
+	mod.AddWidget(NewButton(-20, -2, confirmLabel, BtnSuccess, confirmAction))
 
 	mod.AddWidget(NewButton(-10, -2, app.T(KeyCancel), BtnDefault, func() {
 		app.CloseModal()
 	}))
+
+	// Backspace/Alt+Left/Alt+Right/Ctrl+L work regardless of which child
+	// currently has focus — Window's normal per-widget routing has no
+	// concept of a modal-wide shortcut, so this uses the PreDispatch hook
+	// instead (see docs/custom-widgets.md).
+	mod.PreDispatch = func(ev Event) bool {
+		if ev.Type != EventKey {
+			return false
+		}
+		switch ev.Key {
+		case KeyBackspace:
+			if pathInput.HasFocus() || fileNameInput.HasFocus() {
+				// Let the focused text field delete its own character —
+				// only take Backspace over when it isn't being edited.
+				return false
+			}
+			goUp()
+			return true
+		case KeyAltLeft:
+			goBack()
+			return true
+		case KeyAltRight:
+			goForward()
+			return true
+		case KeyCtrlL:
+			for _, f := range mod.getFlatFocusables() {
+				if f.HasFocus() {
+					f.SetFocus(false)
+				}
+			}
+			pathInput.SetFocus(true)
+			return true
+		}
+		return false
+	}
 
 	app.SetModal(mod)
 }

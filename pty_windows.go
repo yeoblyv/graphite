@@ -3,6 +3,7 @@
 package Graphite
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"unsafe"
@@ -47,10 +48,24 @@ func (p *conPTY) Wait() error {
 		return err
 	}
 	if code != 0 {
-		return fmt.Errorf("process exited with code %d", code)
+		return &windowsExitError{code: int(code)}
 	}
 	return nil
 }
+
+// windowsExitError is unixPTY.Wait's Windows counterpart for a non-zero
+// exit: unixPTY.Wait (pty_linux.go/pty_darwin.go) delegates to exec.Cmd,
+// whose *exec.ExitError has its own ExitCode() int method a caller might
+// reasonably type-switch on to get the numeric code — a pattern that
+// worked on Unix but silently failed on Windows, since this path doesn't
+// go through os/exec at all (ConPTY spawns via a raw windows.CreateProcess
+// call). Implementing the same ExitCode() int method here means
+// `err.(interface{ ExitCode() int })` behaves identically on every
+// platform, without needing exec.Cmd on the Windows path.
+type windowsExitError struct{ code int }
+
+func (e *windowsExitError) Error() string { return fmt.Sprintf("process exited with code %d", e.code) }
+func (e *windowsExitError) ExitCode() int { return e.code }
 
 // startPTY spawns name (with args) attached to a fresh ConPTY (Windows's
 // pseudoconsole API, available since Windows 10 1809) sized cols×rows —
@@ -126,11 +141,25 @@ func startPTY(name string, args []string, cols, rows int) (ptySession, error) {
 		return nil, err
 	}
 
+	baseFlags := uint32(windows.EXTENDED_STARTUPINFO_PRESENT | windows.CREATE_UNICODE_ENVIRONMENT)
 	var pi windows.ProcessInformation
+	// CREATE_BREAKAWAY_FROM_JOB lets the spawned shell escape whatever
+	// Windows Job Object this process itself happens to be confined to
+	// (common when Graphite is launched from another terminal, IDE, or
+	// service that scopes its own children's lifetime/resource limits via
+	// a job) — an interactive shell inheriting the host app's own job
+	// limits is rarely what anyone wants. Not every job permits breakaway
+	// (CreateProcess fails outright with the flag if it doesn't, rather
+	// than just ignoring it), so this retries once without the flag on
+	// that specific failure instead of hard-failing startPTY over it.
 	err = windows.CreateProcess(
-		nil, cmdLine, nil, nil, false,
-		windows.EXTENDED_STARTUPINFO_PRESENT|windows.CREATE_UNICODE_ENVIRONMENT,
+		nil, cmdLine, nil, nil, false, baseFlags|windows.CREATE_BREAKAWAY_FROM_JOB,
 		nil, nil, &si.StartupInfo, &pi)
+	if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+		err = windows.CreateProcess(
+			nil, cmdLine, nil, nil, false, baseFlags,
+			nil, nil, &si.StartupInfo, &pi)
+	}
 	if err != nil {
 		attrs.Delete()
 		windows.ClosePseudoConsole(console)

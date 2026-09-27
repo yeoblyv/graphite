@@ -41,6 +41,20 @@ const (
 	KeyF11       KeyCode = 1019
 	KeyF12       KeyCode = 1020
 	KeyInsert    KeyCode = 1021
+	KeyHome      KeyCode = 1022
+	KeyEnd       KeyCode = 1023
+	KeyPageUp    KeyCode = 1024
+	KeyPageDown  KeyCode = 1025
+	// KeyBackTab is Shift+Tab (CSI Z), reversing focus order in Window.
+	KeyBackTab KeyCode = 1026
+	// KeyCtrlL is Ctrl+L (ASCII FF, 12), decoded the same single-control-byte
+	// way as KeyCtrlC/V/X.
+	KeyCtrlL KeyCode = 1027
+	// KeyAltLeft/KeyAltRight are xterm's modifier-parameter arrow encoding
+	// (CSI 1;3D / CSI 1;3C, modifier value 3 = Alt) — the one Alt-combination
+	// decoded today, added for FilePicker's history back/forward shortcut.
+	KeyAltLeft  KeyCode = 1028
+	KeyAltRight KeyCode = 1029
 )
 
 // EventType discriminates the kind of input an Event carries.
@@ -488,6 +502,18 @@ func (c *Canvas) GetCellBg(x, y int) Color {
 		return c.buffer[y*c.width+x].BgColor
 	}
 	return c.theme.BgScreen
+}
+
+// GetCellFg returns the foreground color at (x, y), or the theme's window
+// foreground for out-of-bounds coordinates — GetCellBg's counterpart, used
+// where a caller needs to alpha-blend against what's already drawn (e.g. a
+// GphPixel with Alpha < 255, see Image.DrawRelative) rather than just its
+// background.
+func (c *Canvas) GetCellFg(x, y int) Color {
+	if x >= 0 && x < c.width && y >= 0 && y < c.height {
+		return c.buffer[y*c.width+x].FgColor
+	}
+	return c.theme.FgWindow
 }
 
 // Theme returns the color palette this Canvas currently renders with, so a

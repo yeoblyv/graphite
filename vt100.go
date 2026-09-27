@@ -41,8 +41,7 @@ const (
 // reads). It intentionally covers the subset real-world interactive
 // programs (shells, vim, htop, less, nested ssh) actually rely on rather
 // than the full xterm control-sequence spec — DEC line-drawing character
-// sets and a real scrollback buffer are the two known gaps; see
-// terminal.go's doc comment.
+// sets are the one known gap that remains; see terminal.go's doc comment.
 type vtScreen struct {
 	cols, rows int
 	grid       []vtCell // primary screen, row-major, len == cols*rows
@@ -60,6 +59,24 @@ type vtScreen struct {
 
 	title string // last OSC 0/2 payload; exposed for a host that wants it, never drawn
 
+	// scrollback holds rows scrolled off the top of the primary screen —
+	// flat, complete rows (len is always a multiple of cols), oldest
+	// first. Only a full-screen scroll of the primary grid pushes into it
+	// (see scrollUp in vt100_ops.go): a scroll confined to a narrower
+	// DECSTBM region, and anything happening on the alternate screen
+	// (vim, htop, less), never does, matching what a real terminal's
+	// scrollback captures.
+	scrollback []vtCell
+	// scrollbackLimit caps scrollback at this many rows; the oldest rows
+	// are dropped once it's exceeded. Set via Terminal.SetScrollbackLimit;
+	// defaults to DefaultScrollbackLines.
+	scrollbackLimit int
+	// viewOffset is how many rows the view is scrolled up from the live
+	// bottom: 0 shows the grid exactly as Cell would (today's only
+	// behavior), up to len(scrollback)/cols shows the oldest scrollback
+	// row at the top. See ViewCell.
+	viewOffset int
+
 	state      vtParserState
 	csiParams  []int
 	csiPrivate bool // '?' prefix seen (DEC private mode sequences)
@@ -70,10 +87,11 @@ type vtScreen struct {
 // with the default (theme-driven — ColorNone) foreground/background.
 func newVTScreen(cols, rows int) *vtScreen {
 	s := &vtScreen{
-		cursorVisible: true,
-		curFg:         ColorNone,
-		curBg:         ColorNone,
-		scrollBottom:  rows - 1,
+		cursorVisible:   true,
+		curFg:           ColorNone,
+		curBg:           ColorNone,
+		scrollBottom:    rows - 1,
+		scrollbackLimit: DefaultScrollbackLines,
 	}
 	s.Resize(cols, rows)
 	return s
@@ -83,6 +101,9 @@ func newVTScreen(cols, rows int) *vtScreen {
 // reflowing wrapped lines to a new width is a real terminal feature this
 // implementation doesn't attempt, so a resize simply starts each screen
 // blank rather than trying to preserve content that may no longer fit.
+// scrollback is cleared for the same reason: every row in it was captured
+// at the old width, and ViewCell's indexing assumes every row is exactly
+// s.cols wide.
 func (s *vtScreen) Resize(cols, rows int) {
 	if cols < 1 {
 		cols = 1
@@ -94,12 +115,64 @@ func (s *vtScreen) Resize(cols, rows int) {
 	s.grid = newBlankGrid(cols, rows)
 	s.altGrid = newBlankGrid(cols, rows)
 	s.scrollTop, s.scrollBottom = 0, rows-1
+	s.scrollback = nil
+	s.viewOffset = 0
 	if s.cursorX >= cols {
 		s.cursorX = cols - 1
 	}
 	if s.cursorY >= rows {
 		s.cursorY = rows - 1
 	}
+}
+
+// scrollbackRows reports how many complete rows are currently in
+// scrollback.
+func (s *vtScreen) scrollbackRows() int {
+	if s.cols == 0 {
+		return 0
+	}
+	return len(s.scrollback) / s.cols
+}
+
+// ScrollBy moves the view delta rows toward scrollback (positive) or back
+// toward the live bottom (negative), clamped to [0, scrollbackRows()].
+func (s *vtScreen) ScrollBy(delta int) {
+	s.viewOffset += delta
+	if s.viewOffset < 0 {
+		s.viewOffset = 0
+	}
+	if maxOffset := s.scrollbackRows(); s.viewOffset > maxOffset {
+		s.viewOffset = maxOffset
+	}
+}
+
+// ScrollToBottom returns the view to the live grid.
+func (s *vtScreen) ScrollToBottom() { s.viewOffset = 0 }
+
+// ViewOffset reports how many rows the view is currently scrolled up from
+// the live bottom (0 = showing the live grid, same as Cell).
+func (s *vtScreen) ViewOffset() int { return s.viewOffset }
+
+// ViewCell is Cell's scrollback-aware counterpart: at viewOffset 0 it
+// returns exactly what Cell(x, y) would; scrolled up, row y instead reads
+// through scrollback, with the oldest captured row appearing at the top
+// once the view is scrolled all the way back.
+func (s *vtScreen) ViewCell(x, y int) vtCell {
+	if s.viewOffset == 0 {
+		return s.Cell(x, y)
+	}
+	if x < 0 || x >= s.cols || y < 0 || y >= s.rows {
+		return blankVTCell
+	}
+	rows := s.scrollbackRows()
+	rowFromTop := rows - s.viewOffset + y
+	if rowFromTop < 0 {
+		return blankVTCell
+	}
+	if rowFromTop < rows {
+		return s.scrollback[rowFromTop*s.cols+x]
+	}
+	return s.Cell(x, rowFromTop-rows)
 }
 
 // active returns whichever grid (primary or alternate) is currently

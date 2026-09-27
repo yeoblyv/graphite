@@ -67,8 +67,16 @@ func (s *vtScreen) reverseIndex() {
 }
 
 // scrollUp moves the scroll region's content up by n lines, filling the
-// newly exposed lines at the bottom with blank cells.
+// newly exposed lines at the bottom with blank cells. When the scroll
+// region is the whole primary screen (not a narrower DECSTBM region, and
+// not the alternate screen — vim, htop, less manage their own display,
+// with no scrollback of their own), the row(s) this evicts off the top
+// are captured into scrollback first, the same rows a real terminal's
+// scrollback would gain from an ordinary newline scrolling the screen.
 func (s *vtScreen) scrollUp(n int) {
+	if !s.usingAlt && s.scrollTop == 0 && s.scrollBottom == s.rows-1 {
+		s.captureScrollback(n)
+	}
 	g := s.active()
 	for y := s.scrollTop; y <= s.scrollBottom-n; y++ {
 		copy(g[y*s.cols:(y+1)*s.cols], g[(y+n)*s.cols:(y+n+1)*s.cols])
@@ -78,6 +86,35 @@ func (s *vtScreen) scrollUp(n int) {
 			continue
 		}
 		clearRow(g, s.cols, y)
+	}
+}
+
+// captureScrollback appends the n rows about to scroll off the top of the
+// primary grid to s.scrollback (oldest of the n first, matching the
+// order they'd naturally leave the screen across repeated scrolls), then
+// trims from the front once s.scrollbackLimit is exceeded — adjusting
+// viewOffset by the same amount so a view already scrolled up stays
+// anchored to the same content rather than jumping when old rows drop
+// off the far end.
+func (s *vtScreen) captureScrollback(n int) {
+	evict := n
+	if regionRows := s.scrollBottom - s.scrollTop + 1; evict > regionRows {
+		evict = regionRows
+	}
+	for y := 0; y < evict; y++ {
+		row := s.grid[y*s.cols : (y+1)*s.cols]
+		s.scrollback = append(s.scrollback, row...)
+	}
+
+	if s.scrollbackLimit < 0 {
+		return
+	}
+	if over := s.scrollbackRows() - s.scrollbackLimit; over > 0 {
+		s.scrollback = s.scrollback[over*s.cols:]
+		s.viewOffset -= over
+		if s.viewOffset < 0 {
+			s.viewOffset = 0
+		}
 	}
 }
 

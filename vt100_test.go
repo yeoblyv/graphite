@@ -218,3 +218,111 @@ func TestVTScreen_ResizeReallocatesBothGrids(t *testing.T) {
 		t.Errorf("cell(19,9) = %q, want 'x'", got)
 	}
 }
+
+func viewLineText(s *vtScreen, y int) string {
+	var out []rune
+	for x := 0; x < s.cols; x++ {
+		c := s.ViewCell(x, y)
+		if c.Ch == 0 {
+			out = append(out, ' ')
+		} else {
+			out = append(out, c.Ch)
+		}
+	}
+	return string(out)
+}
+
+func TestVTScreen_ScrollingPastTheTopCapturesScrollback(t *testing.T) {
+	s := newVTScreen(10, 2)
+	s.Write([]byte("one\r\ntwo\r\nthree")) // "one" scrolls off
+	if got := s.scrollbackRows(); got != 1 {
+		t.Fatalf("scrollbackRows() = %d, want 1", got)
+	}
+	if got := s.scrollback[0]; got.Ch != 'o' {
+		t.Errorf("scrollback[0].Ch = %q, want 'o' (start of \"one\")", got.Ch)
+	}
+}
+
+func TestVTScreen_ViewCellAtZeroOffsetMatchesCell(t *testing.T) {
+	s := newVTScreen(10, 2)
+	s.Write([]byte("one\r\ntwo\r\nthree"))
+	for y := 0; y < s.rows; y++ {
+		for x := 0; x < s.cols; x++ {
+			if got, want := s.ViewCell(x, y), s.Cell(x, y); got != want {
+				t.Fatalf("ViewCell(%d,%d) = %+v, want %+v (Cell at viewOffset 0)", x, y, got, want)
+			}
+		}
+	}
+}
+
+func TestVTScreen_ScrollByRevealsScrollbackThenClampsAtTop(t *testing.T) {
+	s := newVTScreen(10, 2)
+	s.Write([]byte("one\r\ntwo\r\nthree")) // scrollback: ["one"], grid: ["two", "three"]
+
+	s.ScrollBy(1)
+	if got := viewLineText(s, 0); got[:3] != "one" {
+		t.Errorf("scrolled up 1: line 0 = %q, want to start with \"one\"", got)
+	}
+	if got := viewLineText(s, 1); got[:3] != "two" {
+		t.Errorf("scrolled up 1: line 1 = %q, want to start with \"two\"", got)
+	}
+
+	s.ScrollBy(10) // far past the top
+	if got := s.ViewOffset(); got != 1 {
+		t.Errorf("ViewOffset() after over-scrolling = %d, want clamped to 1 (only 1 scrollback row exists)", got)
+	}
+
+	s.ScrollToBottom()
+	if got := viewLineText(s, 0); got[:3] != "two" {
+		t.Errorf("after ScrollToBottom: line 0 = %q, want the live grid's \"two\" again", got)
+	}
+}
+
+func TestVTScreen_AlternateScreenScrollDoesNotCaptureScrollback(t *testing.T) {
+	s := newVTScreen(10, 2)
+	s.Write([]byte("\x1b[?1049h"))         // enter alternate screen
+	s.Write([]byte("one\r\ntwo\r\nthree")) // would scroll "one" off, on the primary screen
+	if got := s.scrollbackRows(); got != 0 {
+		t.Errorf("scrollbackRows() after an alt-screen scroll = %d, want 0", got)
+	}
+}
+
+func TestVTScreen_NarrowScrollRegionDoesNotCaptureScrollback(t *testing.T) {
+	s := newVTScreen(5, 5)
+	s.Write([]byte("1\r\n2\r\n3\r\n4\r\n5")) // fill all 5 rows
+	s.Write([]byte("\x1b[2;4r"))             // scroll region = rows 2-4 (1-indexed)
+	s.Write([]byte("\x1b[4;1H\r\n"))         // scroll within that narrower region only
+	if got := s.scrollbackRows(); got != 0 {
+		t.Errorf("scrollbackRows() after a confined-region scroll = %d, want 0 (only a full-screen scroll captures)", got)
+	}
+}
+
+func TestVTScreen_ScrollbackTrimsToLimitFromTheFront(t *testing.T) {
+	s := newVTScreen(10, 1) // 1 row: every line feed scrolls the whole screen
+	s.scrollbackLimit = 3
+	for i := 0; i < 5; i++ {
+		s.Write([]byte{byte('a' + i), '\r', '\n'})
+	}
+	if got := s.scrollbackRows(); got != 3 {
+		t.Fatalf("scrollbackRows() = %d, want capped at the limit of 3", got)
+	}
+	// The oldest rows ('a', 'b') should have been dropped, keeping 'c','d','e'.
+	if got := s.scrollback[0].Ch; got != 'c' {
+		t.Errorf("oldest remaining scrollback row starts with %q, want 'c' (the 3 most recent survive)", got)
+	}
+}
+
+func TestVTScreen_ResizeClearsScrollback(t *testing.T) {
+	s := newVTScreen(10, 2)
+	s.Write([]byte("one\r\ntwo\r\nthree"))
+	s.ScrollBy(1)
+
+	s.Resize(20, 3)
+
+	if got := s.scrollbackRows(); got != 0 {
+		t.Errorf("scrollbackRows() after Resize = %d, want 0 (old rows are the wrong width now)", got)
+	}
+	if got := s.ViewOffset(); got != 0 {
+		t.Errorf("ViewOffset() after Resize = %d, want 0", got)
+	}
+}

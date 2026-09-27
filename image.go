@@ -2,6 +2,19 @@ package Graphite
 
 import "time"
 
+// blendColor linearly interpolates from under (alpha=0) to over (alpha=255)
+// per RGB channel — the alpha-compositing math a GphPixel.Alpha < 255 needs
+// to blend into whatever the canvas already has drawn underneath.
+func blendColor(under, over Color, alpha uint8) Color {
+	ur, ug, ub := under.Components()
+	or, og, ob := over.Components()
+	a := uint16(alpha)
+	r := uint8((uint16(ur)*(255-a) + uint16(or)*a) / 255)
+	g := uint8((uint16(ug)*(255-a) + uint16(og)*a) / 255)
+	b := uint8((uint16(ub)*(255-a) + uint16(ob)*a) / 255)
+	return RGB(r, g, b)
+}
+
 // Image is a widget that renders a GphImage.
 type Image struct {
 	BaseWidget
@@ -165,7 +178,7 @@ func (img *Image) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 
 	drawPixel := func(screenX, screenY, srcX, srcY int) {
 		pixel := frame[srcY*img.Img.Width+srcX]
-		if pixel.Bg == ColorNone && pixel.Fg == ColorNone && pixel.Level == 0 {
+		if pixel.Alpha == 0 || (pixel.Bg == ColorNone && pixel.Fg == ColorNone && pixel.Level == 0) {
 			return
 		}
 		var char string
@@ -185,7 +198,21 @@ func (img *Image) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 		if bg == ColorNone {
 			bg = c.GetCellBg(screenX, screenY)
 		}
-		c.DrawCell(screenX, screenY, char, bg, pixel.Fg)
+		fg := pixel.Fg
+		if pixel.Alpha < 255 {
+			// Blend this pixel's own colors into whatever the canvas
+			// already has at this cell instead of overwriting it outright —
+			// the same role a PNG's alpha channel plays. bg is already
+			// resolved to a concrete color above; when the pixel didn't
+			// specify its own Bg, bg already equals the canvas's own
+			// current background, so blending it against itself is a
+			// correct no-op rather than needing its own special case.
+			bg = blendColor(c.GetCellBg(screenX, screenY), bg, pixel.Alpha)
+			if fg != ColorNone {
+				fg = blendColor(c.GetCellFg(screenX, screenY), fg, pixel.Alpha)
+			}
+		}
+		c.DrawCell(screenX, screenY, char, bg, fg)
 	}
 
 	if img.AutoSize {

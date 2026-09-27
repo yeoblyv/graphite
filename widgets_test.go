@@ -729,6 +729,57 @@ func TestListBox_SelectedRowTextIsReadableAgainstItsHighlight(t *testing.T) {
 	}
 }
 
+func TestListBox_HomeEndPageUpPageDown(t *testing.T) {
+	items := make([]string, 20)
+	for i := range items {
+		items[i] = string(rune('a' + i))
+	}
+	lb := NewListBox(0, 0, 20, 5, items, nil)
+	c := NewCanvas()
+	c.Resize(20, 5)
+	lb.DrawRelative(c, 0, 0, 20, 5) // establishes LastH=5, which PageUp/PageDown step by
+
+	lb.HandleEvent(Event{Type: EventKey, Key: KeyEnd})
+	if lb.Selected != 19 {
+		t.Fatalf("after End, Selected = %d, want 19", lb.Selected)
+	}
+	if lb.Scroll != 15 {
+		t.Fatalf("after End, Scroll = %d, want 15 (last row visible)", lb.Scroll)
+	}
+
+	lb.HandleEvent(Event{Type: EventKey, Key: KeyPageUp})
+	if lb.Selected != 14 {
+		t.Fatalf("after PageUp from 19, Selected = %d, want 14", lb.Selected)
+	}
+
+	lb.HandleEvent(Event{Type: EventKey, Key: KeyHome})
+	if lb.Selected != 0 || lb.Scroll != 0 {
+		t.Fatalf("after Home, Selected=%d Scroll=%d, want 0/0", lb.Selected, lb.Scroll)
+	}
+
+	lb.HandleEvent(Event{Type: EventKey, Key: KeyPageDown})
+	if lb.Selected != 5 {
+		t.Fatalf("after PageDown from 0, Selected = %d, want 5", lb.Selected)
+	}
+}
+
+func TestListBox_PageUpPageDownClampAtEnds(t *testing.T) {
+	lb := NewListBox(0, 0, 20, 5, []string{"a", "b", "c"}, nil)
+	c := NewCanvas()
+	c.Resize(20, 5)
+	lb.DrawRelative(c, 0, 0, 20, 5)
+
+	lb.HandleEvent(Event{Type: EventKey, Key: KeyPageUp})
+	if lb.Selected != 0 {
+		t.Fatalf("PageUp at top: Selected = %d, want clamped to 0", lb.Selected)
+	}
+
+	lb.HandleEvent(Event{Type: EventKey, Key: KeyPageDown})
+	if lb.Selected != 2 {
+		t.Fatalf("PageDown past a short list: Selected = %d, want clamped to len-1=2", lb.Selected)
+	}
+}
+
 func TestTodoList_StaleSelectedAfterShrinkDoesNotPanic(t *testing.T) {
 	tl := NewTodoList(0, 0, 20, 5, []string{"a", "b", "c", "d", "e"}, false)
 	tl.Selected = 4

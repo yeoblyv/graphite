@@ -15,6 +15,7 @@ type GphPixel struct {
 	Bg    Color
 	Fg    Color
 	Level uint8 // 0=blank, 1=25%, 2=50%, 3=75%, 4=100% density
+	Alpha uint8 // 0=transparent, 255=opaque (PNG convention)
 }
 
 type GphImage struct {
@@ -30,6 +31,23 @@ type GphImage struct {
 blends it with whatever is already on the canvas underneath
 (`Canvas.GetCellBg`) instead of painting a solid background, which is how
 a non-rectangular sprite over an arbitrary background is achieved.
+
+`Alpha` is a second, finer-grained kind of transparency, layered on top of
+that: it doesn't just pass a color through untouched (what `Bg == ColorNone`
+does) — it blends the pixel's *own* `Bg`/`Fg` partway into whatever the
+canvas already has at that cell, the same job a PNG's alpha channel does.
+`Alpha: 255` (fully opaque) paints the pixel's colors exactly as before;
+`Alpha: 0` skips drawing the cell entirely, same as a fully blank pixel;
+anything in between mixes the two.
+
+**`Alpha`'s zero value is 0 — fully *transparent*, not opaque.** A
+`GphPixel{}` literal that doesn't set `Alpha` is invisible. Every example on
+this page sets it explicitly; do the same in your own code. `ReadGph`
+handles this correctly for files on disk regardless: a `.gph` written before
+this field existed (format version 1, `GphMagic`) has no `Alpha` byte at
+all, and decodes every pixel as `Alpha: 255` so it keeps rendering exactly
+as it always did. `WriteGph` always writes the current format version
+(`GphMagicV2`), which does store `Alpha` per pixel.
 
 ```go
 type PlaybackMode uint8
@@ -103,6 +121,7 @@ for f := 0; f < 15; f++ {
 				Bg:    theme.BgWidget,
 				Fg:    theme.Primary,
 				Level: uint8((x + y + f) % 5),
+				Alpha: 255,
 			}
 		}
 	}
