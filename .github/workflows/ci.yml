@@ -35,9 +35,7 @@ jobs:
           fi
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
+        run: go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 run ./...
 
       - name: Vulnerability check
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
