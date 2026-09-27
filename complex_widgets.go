@@ -230,9 +230,9 @@ func (ta *TextArea) HandleEvent(ev Event) {
 			ta.Text = string(append(head, append([]rune{'\n'}, tail...)...))
 			ta.CursorPos++
 		} else if ev.Key == KeyCtrlC {
-			clipboard.WriteAll(ta.Text)
+			_ = clipboard.WriteAll(ta.Text) // no OS clipboard available (headless, unsupported platform): silently a no-op
 		} else if ev.Key == KeyCtrlX {
-			clipboard.WriteAll(ta.Text)
+			_ = clipboard.WriteAll(ta.Text)
 			ta.Text = ""
 			ta.CursorPos = 0
 		} else if ev.Key == KeyCtrlV {

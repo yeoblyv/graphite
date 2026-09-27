@@ -103,7 +103,7 @@ func (t *Terminal) readLoop() {
 		n, err := t.pty.Read(buf)
 		if n > 0 {
 			t.mu.Lock()
-			t.screen.Write(buf[:n])
+			_, _ = t.screen.Write(buf[:n]) // vtScreen.Write never returns a non-nil error
 			t.mu.Unlock()
 		}
 		if err != nil {
@@ -147,7 +147,7 @@ func (t *Terminal) SetScrollbackLimit(lines int) {
 // WriteRaw implements RawInputReceiver: every byte is sent to the child
 // exactly as received, with no interpretation.
 func (t *Terminal) WriteRaw(p []byte) {
-	t.pty.Write(p)
+	_, _ = t.pty.Write(p) // best-effort: a dead child's write failure surfaces via readLoop's own Read error instead
 }
 
 // DrawRelative implements Widget: resizes the pty/screen to match this
@@ -165,7 +165,7 @@ func (t *Terminal) DrawRelative(c *Canvas, offX, offY, pW, pH int) {
 
 	if t.LastW != t.screen.cols || t.LastH != t.screen.rows {
 		t.screen.Resize(t.LastW, t.LastH)
-		t.pty.Resize(t.LastW, t.LastH)
+		_ = t.pty.Resize(t.LastW, t.LastH) // best-effort: a dead child's resize failure surfaces via readLoop's own Read error instead
 	}
 
 	theme := c.Theme()

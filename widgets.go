@@ -326,7 +326,7 @@ func (ib *InputBox) HandleEvent(ev Event) {
 			ib.Value = string(append(runes[:ib.CursorPos], runes[ib.CursorPos+1:]...))
 		} else if ev.Key == KeyCtrlC {
 			if !ib.Masked {
-				clipboard.WriteAll(ib.Value)
+				_ = clipboard.WriteAll(ib.Value) // no OS clipboard available (headless, unsupported platform): silently a no-op
 			}
 		} else if ev.Key == KeyCtrlX {
 			// A masked field never touches the clipboard, not even to cut —
@@ -337,7 +337,7 @@ func (ib *InputBox) HandleEvent(ev Event) {
 			if ib.Masked {
 				return
 			}
-			clipboard.WriteAll(ib.Value)
+			_ = clipboard.WriteAll(ib.Value) // no OS clipboard available (headless, unsupported platform): silently a no-op
 			ib.Value = ""
 			ib.CursorPos = 0
 		} else if ev.Key == KeyCtrlV {

@@ -28,11 +28,21 @@ Both accept cross-compile targets (`build-linux-amd64`,
 ## Before opening a pull request
 
 - `gofmt -l .` reports nothing.
-- `go vet ./...` and `golangci-lint run ./...` are clean.
+- `go vet ./...` and `golangci-lint run ./...` are clean (`.golangci.yml`
+  is the authoritative config — CI runs the same one).
+- `go run golang.org/x/vuln/cmd/govulncheck@latest ./...` reports no
+  vulnerability reachable from this code.
 - `go test ./...` passes; new or changed behavior ships with a test, and bug
   fixes ship with a regression test that fails without the fix.
 - New or changed exported symbols carry a godoc comment.
 - Comments and commit messages are in English.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+  (`type(scope): summary`, imperative mood, no trailing period).
+
+## Reporting a security issue
+
+Do not open a public issue for a suspected vulnerability — see
+[SECURITY.md](SECURITY.md) for the private reporting process.
 
 ## Reporting a bug or proposing a change
 

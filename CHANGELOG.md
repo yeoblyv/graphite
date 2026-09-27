@@ -30,6 +30,16 @@ Baseline for the first public release.
 
 ### Added
 
+- `SECURITY.md` (private vulnerability reporting process) and
+  `.editorconfig` (cross-editor formatting baseline matching `gofmt`'s
+  tab-indent convention for Go files).
+- `.golangci.yml`: an explicit, versioned `golangci-lint` configuration
+  (previously relying entirely on the tool's own defaults), and a CI
+  `Lint` step running it on every push/PR across the full OS matrix,
+  alongside a `Vulnerability check` step (`govulncheck`) and a
+  `.github/dependabot.yml` for weekly Go module and Actions updates —
+  static analysis and dependency scanning are now enforced gates, not
+  just a local, easy-to-skip suggestion in `CONTRIBUTING.md`.
 - `Terminal` scrollback: a mouse-wheel notch or `PageUp`/`PageDown` now
   scrolls up to `DefaultScrollbackLines` (2000, configurable via
   `Terminal.SetScrollbackLimit`) rows of primary-screen output that

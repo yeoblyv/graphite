@@ -10,11 +10,6 @@ type vtCell struct {
 	Bold, Underline, Reverse bool
 }
 
-// blank reports whether c is an untouched or explicitly erased cell —
-// used so Terminal's own DrawRelative can leave truly empty cells alone
-// instead of painting over whatever the widget behind it drew.
-func (c vtCell) blank() bool { return c.Ch == 0 }
-
 // blankVTCell is the correct "erased" cell: Fg/Bg explicitly ColorNone,
 // so a renderer falls back to its own default colors. Every clearing
 // operation in this file and vt100_ops.go writes this instead of Go's

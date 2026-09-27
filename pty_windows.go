@@ -167,7 +167,7 @@ func startPTY(name string, args []string, cols, rows int) (ptySession, error) {
 		ptyOut.Close()
 		return nil, fmt.Errorf("CreateProcess: %w", err)
 	}
-	windows.CloseHandle(pi.Thread) // only the process handle is needed to Wait
+	_ = windows.CloseHandle(pi.Thread) // only the process handle is needed to Wait; nothing actionable if closing the thread handle itself fails
 
 	return &conPTY{console: console, in: ptyIn, out: ptyOut, proc: pi.Process, attrs: attrs}, nil
 }

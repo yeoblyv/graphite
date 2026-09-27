@@ -1,0 +1,20 @@
+run:
+  timeout: 5m
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    # vtScreen.Write's own doc comment guarantees it never returns a
+    # non-nil error (an unrecognized escape sequence is dropped, not
+    # treated as fatal — see vt100.go). Tests exercise it dozens of times
+    # purely for its side effect on the screen buffer; checking a return
+    # value that is documented to never be non-nil adds noise, not safety.
+    - path: _test\.go
+      linters: [errcheck]
+
+linters:
+  enable:
+    - errcheck
+    - unused
+    - govet

@@ -34,5 +34,13 @@ jobs:
             exit 1
           fi
 
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: Vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
       - name: Test
         run: go test ./...
