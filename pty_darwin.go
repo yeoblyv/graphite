@@ -16,9 +16,17 @@ import (
 // ioctlPtr issues an ioctl whose argument is an arbitrary pointer (unlike
 // unix.IoctlSetInt/IoctlGetInt's plain-int argument) — needed for
 // TIOCPTYGNAME, which fills a caller-provided byte buffer rather than
-// reading or writing a single int.
+// reading or writing a single int. golang.org/x/sys/unix has no exported
+// wrapper for a buffer-filling ("get") ioctl on Darwin — its own
+// IoctlSetString takes a value to send, not a buffer to fill and read
+// back — and its actual libSystem-backed ioctlPtr, the thing SA1019
+// wants used instead of a raw syscall, is unexported. Going through cgo
+// to reach libSystem directly isn't an option either: this repo builds
+// with CGO_ENABLED=0. TIOCPTYGNAME's numeric value is a decades-stable
+// BSD ioctl every Darwin pty library (including the Go toolchain's own
+// historical approach) relies on the same way.
 func ioctlPtr(fd int, req uintptr, arg *byte) error {
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), req, uintptr(unsafe.Pointer(arg)))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), req, uintptr(unsafe.Pointer(arg))) //nolint:staticcheck // SA1019: no non-cgo, non-deprecated alternative exists for this ioctl; see the doc comment above
 	if errno != 0 {
 		return errno
 	}
