@@ -44,7 +44,7 @@ func startPTY(name string, args []string, cols, rows int) (ptySession, error) {
 
 	slave, err := os.OpenFile(slavePath, os.O_RDWR, 0)
 	if err != nil {
-		master.Close()
+		_ = master.Close() // already failing for a different reason; nothing actionable if closing the half-opened pty fails too
 		return nil, err
 	}
 	defer slave.Close() // the child gets its own copy via Stdin/Stdout/Stderr below
@@ -52,7 +52,7 @@ func startPTY(name string, args []string, cols, rows int) (ptySession, error) {
 	if err := unix.IoctlSetWinsize(int(master.Fd()), unix.TIOCSWINSZ, &unix.Winsize{
 		Row: uint16(rows), Col: uint16(cols),
 	}); err != nil {
-		master.Close()
+		_ = master.Close()
 		return nil, err
 	}
 
@@ -67,7 +67,7 @@ func startPTY(name string, args []string, cols, rows int) (ptySession, error) {
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
 	if err := cmd.Start(); err != nil {
-		master.Close()
+		_ = master.Close()
 		return nil, err
 	}
 
@@ -92,12 +92,12 @@ func openPTYPair() (master *os.File, slavePath string, err error) {
 	// value other than a coincidentally-mapped address. IoctlSetPointerInt
 	// is the one that actually takes its argument's address.
 	if err := unix.IoctlSetPointerInt(fd, unix.TIOCSPTLCK, 0); err != nil {
-		master.Close()
+		_ = master.Close()
 		return nil, "", fmt.Errorf("unlock pty: %w", err)
 	}
 	n, err := unix.IoctlGetInt(fd, unix.TIOCGPTN)
 	if err != nil {
-		master.Close()
+		_ = master.Close()
 		return nil, "", fmt.Errorf("get pty number: %w", err)
 	}
 
